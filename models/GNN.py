@@ -104,6 +104,7 @@ class GNNBackbone(nn.Module):
         self.model_type = model_type.lower()
         self.num_layers = num_layers
         self.dropout = dropout
+        self.hid_dim = hid_dim
 
         # Build GNN layers
         self.convs = nn.ModuleList()
@@ -116,26 +117,31 @@ class GNNBackbone(nn.Module):
                 in_channels = in_dim if i == 0 else hid_dim
                 self.convs.append(SAGEConv(in_channels, hid_dim))
         elif self.model_type == "gat":
-            # First layer with multi-head
-            self.convs.append(GATConv(in_dim, hid_dim, heads=8, dropout=dropout))
-            # Subsequent layers with single head
-            for i in range(1, num_layers):
-                self.convs.append(GATConv(hid_dim * 8 if i == 1 else hid_dim, hid_dim, heads=1, dropout=dropout))
+            # GAT with multi-head attention
+            # First layer: input -> hid_dim with 8 heads
+            heads = 8
+            self.convs.append(GATConv(in_dim, hid_dim, heads=heads, dropout=dropout, concat=True))
+            # Middle layers: (hid_dim * heads) -> hid_dim with fewer heads
+            for i in range(1, num_layers - 1):
+                self.convs.append(GATConv(hid_dim * heads, hid_dim, heads=heads, dropout=dropout, concat=True))
+            # Last layer: (hid_dim * heads) -> hid_dim with single head (concat=False for mean)
+            if num_layers > 1:
+                self.convs.append(GATConv(hid_dim * heads, hid_dim, heads=1, dropout=dropout, concat=False))
         else:
             raise ValueError(f"Unknown model type: {model_type}")
 
     def forward(self, x, edge_index):
         for i, conv in enumerate(self.convs):
-            if self.model_type == "gat" and i == 0:
+            x = conv(x, edge_index)
+            # Apply activation and dropout for all but the last layer
+            if i < self.num_layers - 1:
+                x = F.elu(x) if self.model_type == "gat" else F.relu(x)
                 x = F.dropout(x, p=self.dropout, training=self.training)
-                x = conv(x, edge_index)
-                x = F.elu(x)
-            else:
-                x = conv(x, edge_index)
-                if i < self.num_layers - 1:  # Don't apply activation after last layer
-                    x = F.relu(x)
-                    x = F.dropout(x, p=self.dropout, training=self.training)
         return x
+    
+    def get_output_dim(self):
+        """Return the output dimension of the GNN backbone."""
+        return self.hid_dim
 
 
 class SEMGFingerPredictor(nn.Module):
@@ -174,27 +180,37 @@ class SEMGFingerPredictor(nn.Module):
             out: (batch, 5) finger predictions with sigmoid activation
         """
         batch_size, seq_len, in_features = x.shape
+        device = x.device
 
         # Create fully connected graph for each sequence
-        # Each timestep is a node, fully connected
+        # Each timestep is a node, fully connected within each graph
         num_nodes = seq_len
-        edge_index = torch.combinations(torch.arange(num_nodes), r=2).t()
+        
+        # Generate complete graph edges (undirected)
+        # For a complete graph with n nodes: connect all pairs (i,j) where i < j
+        edge_index = torch.combinations(torch.arange(num_nodes, device=device), r=2).t()
         # Make undirected by adding reverse edges
         edge_index = torch.cat([edge_index, edge_index.flip(0)], dim=1)
-        edge_index = to_undirected(edge_index)
-
-        # Repeat for batch
-        edge_index = edge_index.repeat(1, batch_size)
+        
+        # Create batch of graphs: offset edge indices for each graph in the batch
+        edge_index_list = []
+        batch_indices_list = []
+        for i in range(batch_size):
+            # Offset node indices by i * seq_len for the i-th graph
+            offset_edge_index = edge_index + i * seq_len
+            edge_index_list.append(offset_edge_index)
+            # Create batch indices for this graph
+            batch_indices_list.append(torch.full((seq_len,), i, dtype=torch.long, device=device))
+        
+        # Concatenate all edges and batch indices
+        edge_index_batched = torch.cat(edge_index_list, dim=1)
+        batch_indices = torch.cat(batch_indices_list, dim=0)
 
         # Flatten batch and seq dimensions for GNN input
         x_flat = x.view(-1, in_features)  # (batch * seq_len, in_features)
 
-        # Create batch indices
-        batch_indices = torch.repeat_interleave(torch.arange(batch_size, device=x.device), seq_len)
-        edge_index = edge_index + (batch_indices.unsqueeze(0) * seq_len).repeat(2, 1)
-
         # GNN forward pass
-        node_embeddings = self.gnn(x_flat, edge_index)
+        node_embeddings = self.gnn(x_flat, edge_index_batched)
 
         # Global pooling to get graph-level representation
         if self.cfg.aggregation == "mean":
@@ -241,9 +257,9 @@ class SEMGDataset(Dataset):
             raise ValueError("Data file must be .pt or .npy")
 
         # Assume data format: (num_samples, seq_len, in_features + out_dim)
-        # Last out_dim columns are finger labels
-        self.sequences = data[:, :seq_len, :-5]  # sEMG features
-        self.labels = data[:, -5:]  # Finger labels (one-hot or continuous)
+        # Last out_dim columns are finger labels (same across all timesteps)
+        self.sequences = data[:, :seq_len, :-5]  # sEMG features: (num_samples, seq_len, in_features)
+        self.labels = data[:, 0, -5:]  # Finger labels: (num_samples, 5) - take from first timestep
 
         print(f"Loaded dataset: {len(self.sequences)} samples, seq_len={seq_len}")
 
@@ -261,22 +277,28 @@ def load_semg_dataset(cfg: Config, data_path: str) -> Tuple[TorchDataLoader, Tor
 
     # Create dummy data
     num_samples = 1000
-    train_data = torch.randn(num_samples, cfg.seq_len, cfg.in_features + cfg.out_dim)
-    val_data = torch.randn(200, cfg.seq_len, cfg.in_features + cfg.out_dim)
-    test_data = torch.randn(200, cfg.seq_len, cfg.in_features + cfg.out_dim)
+    # Generate random sEMG sequences
+    train_sequences = torch.randn(num_samples, cfg.seq_len, cfg.in_features)
+    val_sequences = torch.randn(200, cfg.seq_len, cfg.in_features)
+    test_sequences = torch.randn(200, cfg.seq_len, cfg.in_features)
+    
+    # Generate random binary finger labels (0 or 1 for each finger)
+    train_labels = torch.randint(0, 2, (num_samples, cfg.out_dim)).float()
+    val_labels = torch.randint(0, 2, (200, cfg.out_dim)).float()
+    test_labels = torch.randint(0, 2, (200, cfg.out_dim)).float()
 
     # Create datasets
     train_dataset = SEMGDataset.__new__(SEMGDataset)
-    train_dataset.sequences = train_data[:, :, :-cfg.out_dim]
-    train_dataset.labels = train_data[:, -cfg.out_dim:]
+    train_dataset.sequences = train_sequences
+    train_dataset.labels = train_labels
 
     val_dataset = SEMGDataset.__new__(SEMGDataset)
-    val_dataset.sequences = val_data[:, :, :-cfg.out_dim]
-    val_dataset.labels = val_data[:, -cfg.out_dim:]
+    val_dataset.sequences = val_sequences
+    val_dataset.labels = val_labels
 
     test_dataset = SEMGDataset.__new__(SEMGDataset)
-    test_dataset.sequences = test_data[:, :, :-cfg.out_dim]
-    test_dataset.labels = test_data[:, -cfg.out_dim:]
+    test_dataset.sequences = test_sequences
+    test_dataset.labels = test_labels
 
     # Create data loaders
     train_loader = TorchDataLoader(train_dataset, batch_size=cfg.batch_size, shuffle=True)
