@@ -5,6 +5,8 @@ def bandpass_filter(signal, fs: float, low: float = 20.0, high: float = 450.0, o
     """
     Butterworth band-pass filter on raw sEMG
 
+    Parameters
+    ----------
     signal : np.ndarray
         1D or ND array. Filtering is along `axis`
     fs : float
@@ -21,6 +23,9 @@ def bandpass_filter(signal, fs: float, low: float = 20.0, high: float = 450.0, o
         If True, use forward-backward (zero-phase) filtering
         If False, use causal filtering for shorter windows w/o enough padding but introduces phase lag
 
+        
+    Returns
+    -------
     np.ndarray
         Filtered signal outputted in same shape as input
 
