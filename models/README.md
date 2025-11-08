@@ -15,3 +15,7 @@ This folder contains deep learning architectures for sEMG signal processing task
 - **GNN**: Graph neural network for structured sEMG representations
   - Input: `(batch, seq_len, 3)` — sEMG features
   - Output: `(batch, 5)` — Binary predictions per finger (sigmoid activation)
+
+### Dataset
+Due to the size of the dataset, it has instead been uploaded to the mega link here:
+Download it and put in the correct directory when needed to be used. 
