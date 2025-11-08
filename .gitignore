@@ -3,3 +3,7 @@ __pycache__/
 
 # OS
 .DS_Store
+
+# Ignore data
+# Ignore local dataset folders
+datasets/toy_semg/
