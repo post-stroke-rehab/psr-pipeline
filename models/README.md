@@ -18,4 +18,4 @@ This folder contains deep learning architectures for sEMG signal processing task
 
 ### Dataset
 Due to the size of the dataset, it has instead been uploaded to the mega link here:
-Download it and put in the correct directory when needed to be used. 
+Download it and put in the correct directory when needed to be used. https://mega.nz/folder/DZcXTQxR#u75Y5nCKy3Z7zPF4oTyURw
