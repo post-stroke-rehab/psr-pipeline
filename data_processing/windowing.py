@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-def segment_signal(signal, fs, window_size=0.2, overlap=0.5):
+def segment_signal(signal, fs, window_size=0.2, overlap=0.5, padding=False):
     '''
     Segment a recorded sEMG signal into overlapping windows.
 
@@ -16,6 +16,8 @@ def segment_signal(signal, fs, window_size=0.2, overlap=0.5):
         Window length in seconds, default 0.2 (200 ms).
     overlap : float
         Fraction of overlap between consecutive windows, default 0.5.
+    padding : bool
+        If True, include an additional final window padded with zeroes.
 
     Returns
     -
@@ -41,11 +43,23 @@ def segment_signal(signal, fs, window_size=0.2, overlap=0.5):
     if step_samples <= 0:
         raise ValueError("overlap too large: step size becomes 0.")
 
-    # Compute start indices of each window
+    # Compute start indices for the *unmodified* signal
     starts = np.arange(0, len(signal) - window_samples + 1, step_samples)
-    num_windows = len(starts)
 
-    # Preallocate arrays 
+    # Optional zero padding so the final window fits
+    if padding:
+        # Compute remainder after last valid window start
+        remainder = len(signal) - (starts[-1] + window_samples)
+
+        if remainder != 0:
+            pad_len = (window_samples - remainder)
+            signal = np.concatenate([signal, np.zeros(pad_len)])
+            
+            # Recompute starts for the newly padded signal
+            starts = np.arange(0, len(signal) - window_samples + 1, step_samples)
+
+    # Preallocate arrays
+    num_windows = len(starts)
     segments = np.zeros((num_windows, window_samples))
     timestamps = np.zeros((num_windows, 3))
 
@@ -56,7 +70,7 @@ def segment_signal(signal, fs, window_size=0.2, overlap=0.5):
 
         t_start = start / fs
         t_end = end / fs
-        t_center = (t_start + t_end) / 2
+        t_center = 0.5 * (t_start + t_end)
         timestamps[i] = [t_start, t_center, t_end]
 
     return segments, timestamps
@@ -75,9 +89,10 @@ def main():
     # Parameters 
     window_size = 0.4  
     overlap = 0.25
+    padding = False
 
     # Run segmentation 
-    segments, timestamps = segment_signal(signal, fs, window_size, overlap)
+    segments, timestamps = segment_signal(signal, fs, window_size, overlap, padding)
 
     # Verification 1: Shapes 
     print(f"Number of windows: {segments.shape[0]}")
