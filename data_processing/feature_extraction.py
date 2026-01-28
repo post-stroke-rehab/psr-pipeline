@@ -105,3 +105,45 @@ def extract_features(segments, fs=1000, threshold=0.01, wamp_threshold=0.05,
 
     return feature_tensor, feature_df, timestamps
 
+def extract_features_multichannel(windows: np.ndarray, fs: float) -> np.ndarray:
+    """
+    Extract features for windowed multi-channel EMG.
+
+    Parameters
+    ----------
+    windows : np.ndarray
+        Shape (n_windows, window_samples, n_channels)
+    fs : float
+        Sampling frequency
+
+    Returns
+    -------
+    X : np.ndarray
+        Shape (n_windows, n_channels * n_features_per_channel)
+        Feature order: for each channel in increasing index order,
+        [RMS, MAV, IEMG, WL, VAR, ZC, SSC, WAMP, MNF, MDF, SEN, TP]
+    """
+    if not isinstance(windows, np.ndarray):
+        windows = np.array(windows)
+
+    if windows.ndim != 3:
+        raise ValueError(f"windows must be 3D (n_windows, window_samples, n_channels). Got {windows.shape}")
+
+    n_windows, window_samples, n_channels = windows.shape
+
+    #ise existing single-signal extractor on each channel-window
+    #only need the tensor output; timestamps/df are irrelevant here.
+    feature_rows = []
+
+    for i in range(n_windows):
+        feats_per_ch = []
+        for ch in range(n_channels):
+            #one 1D window for one channel
+            x_1d = windows[i, :, ch]
+            ft, _, _ = extract_features(x_1d, fs=int(fs), window_stride=1.0, start_time=0.0)
+            #ft shape is (1, 12) because single window
+            feats_per_ch.append(ft[0])
+        #concatenate channel feature vectors -> (n_channels*12,)
+        feature_rows.append(np.concatenate(feats_per_ch, axis=0))
+
+    return np.vstack(feature_rows)
