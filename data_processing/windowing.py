@@ -75,6 +75,53 @@ def segment_signal(signal, fs, window_size=0.2, overlap=0.5, padding=False):
 
     return segments, timestamps
 
+def segment_multichannel(signals: np.ndarray, fs: float, window_size=0.2, overlap=0.5, padding=False):
+    """
+    Segment multi-channel EMG into overlapping windows.
+
+    Parameters
+    ----------
+    signals : np.ndarray
+        Shape (n_samples, n_channels)
+    fs : float
+        Sampling frequency (Hz)
+    window_size, overlap, padding : see segment_signal
+
+    Returns
+    -------
+    windows : np.ndarray
+        Shape (num_windows, window_samples, n_channels)
+    timestamps : np.ndarray
+        Shape (num_windows, 3)
+    """
+    if not isinstance(signals, np.ndarray):
+        signals = np.array(signals)
+
+    if signals.ndim != 2:
+        raise ValueError(f"signals must be 2D (n_samples, n_channels). Got {signals.shape}")
+
+    n_samples, n_channels = signals.shape
+
+    #windowing first channel to get reference windows + timestamps
+    seg0, timestamps = segment_signal(signals[:, 0], fs, window_size, overlap, padding)
+    num_windows, window_samples = seg0.shape
+
+    windows = np.zeros((num_windows, window_samples, n_channels), dtype=seg0.dtype)
+    windows[:, :, 0] = seg0
+
+    #window remaining channels using same parameters
+    for ch in range(1, n_channels):
+        seg_ch, ts_ch = segment_signal(signals[:, ch], fs, window_size, overlap, padding)
+
+        #verifying timestamps match
+        if seg_ch.shape != (num_windows, window_samples):
+            raise ValueError(
+                f"Channel {ch} produced shape {seg_ch.shape}, expected {(num_windows, window_samples)}. "
+                "This usually means inconsistent signal lengths across channels."
+            )
+        windows[:, :, ch] = seg_ch
+
+    return windows, timestamps
 
 def main():
     """Verify that segment_signal meets all verification and acceptance criteria."""
