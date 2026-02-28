@@ -7,3 +7,5 @@ __pycache__/
 # Ignore data
 # Ignore local dataset folders
 datasets/toy_semg/
+.venv
+physiomio/
