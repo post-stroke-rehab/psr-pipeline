@@ -33,6 +33,16 @@ from torch_geometric.utils import to_undirected, dense_to_sparse
 import optuna
 from optuna.trial import TrialState
 
+<<<<<<< Updated upstream
+=======
+# Shared evaluation metrics and curves
+from evaluation.metrics import compute_multilabel_metrics, compute_curves
+from evaluation.plots import save_metric_curves
+
+# Dataset -> model adapter (standard feature tensor -> GNN sequences)
+from adapters.feature_to_sequence import feature_tensor_to_sequences
+
+>>>>>>> Stashed changes
 
 # -----------------------------
 # Reproducibility utilities
@@ -227,9 +237,9 @@ class SEMGFingerPredictor(nn.Module):
             graph_emb = F.relu(layer(graph_emb))
             graph_emb = F.dropout(graph_emb, p=self.cfg.dropout, training=self.training)
 
-        # Final prediction with sigmoid
-        out = torch.sigmoid(self.final_layer(graph_emb))
-        return out
+        # Final prediction with logits
+        logits = self.final_layer(graph_emb)
+        return logits # Just added
 
 
 def build_model(cfg: Config) -> nn.Module:
@@ -349,9 +359,9 @@ def finger_accuracy(predictions: torch.Tensor, targets: torch.Tensor, threshold:
     }
 
 
-def finger_loss(predictions: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
-    """Binary cross-entropy loss for finger prediction."""
-    return F.binary_cross_entropy(predictions, targets)
+def finger_loss(logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+    """Binary cross-entropy loss for finger prediction (expects raw logits)."""
+    return F.binary_cross_entropy_with_logits(logits, targets)
 
 
 # -----------------------------
@@ -363,12 +373,21 @@ def train_one_epoch(model, train_loader, optimizer, device, cfg: Config) -> floa
     total_loss = 0.0
     total_samples = 0
 
+<<<<<<< Updated upstream
     for sequences, targets in train_loader:
+=======
+    for batch, targets in train_loader:
+        if cfg.use_feature_adapter:
+            # batch: (N, C, W, F) -> sequences: (N, W, C*F)
+            sequences = feature_tensor_to_sequences(batch)
+        else:
+            sequences = batch
+>>>>>>> Stashed changes
         sequences, targets = sequences.to(device), targets.to(device)
 
         optimizer.zero_grad()
-        predictions = model(sequences)  # (batch, 5)
-        loss = finger_loss(predictions, targets)
+        logits = model(sequences)  # (batch, 5)
+        loss = finger_loss(logits, targets)
         loss.backward()
         optimizer.step()
 
@@ -387,16 +406,30 @@ def evaluate(model, data_loader, device) -> Dict[str, float]:
     all_targets = []
     total_samples = 0
 
+<<<<<<< Updated upstream
     for sequences, targets in data_loader:
+=======
+    for batch, targets in data_loader:
+        if cfg.use_feature_adapter:
+            sequences = feature_tensor_to_sequences(batch)
+        else:
+            sequences = batch
+
+>>>>>>> Stashed changes
         sequences, targets = sequences.to(device), targets.to(device)
 
-        predictions = model(sequences)
-        loss = finger_loss(predictions, targets)
+        # Model returns logits now
+        logits = model(sequences)
+
+        # Loss must use logits
+        loss = finger_loss(logits, targets)
 
         total_loss += float(loss.item()) * sequences.size(0)
         total_samples += sequences.size(0)
 
-        all_predictions.append(predictions.cpu())
+        # Metrics require probabilities
+        probs = torch.sigmoid(logits)
+        all_predictions.append(probs.cpu())
         all_targets.append(targets.cpu())
 
     # Concatenate all predictions and targets
