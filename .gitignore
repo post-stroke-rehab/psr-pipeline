@@ -7,12 +7,5 @@ __pycache__/
 # Ignore data
 # Ignore local dataset folders
 datasets/toy_semg/
-<<<<<<< Updated upstream
-=======
 .venv
 physiomio/
-
-# Ignore processed and raw data
-datasets/processed/
-datasets/raw/
->>>>>>> Stashed changes

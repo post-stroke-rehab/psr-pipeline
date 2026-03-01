@@ -7,6 +7,26 @@
 
 DB2_5BIT = {0: [0,0,0,0,0]}
 
+PHYSIOMIO_TO_DB2 = {
+    "Rest": 0,
+    "MassFlexion": 6,
+    "HookGrasp": 20,
+    "ThumbAdduction": 34,
+    "PinchGrasp": 15,
+    "PinchGraspMiddle": 50,
+    "PinchGraspRing": 51,
+    "PinchGraspPinkie": 52,
+    "DiameterGrasp": 19,
+    "SphereGrasp": 27,
+    "MassExtension": 8,
+    "MassAdduction": 5,
+    "WristVolarFlexion": 13,
+    "WristDorsiFlexion": 14,
+    "ForearmPronation": 11,
+    "ForearmSupination": 12,
+}
+
+
 # Exercise B, E1
 B = {
     1:  [1,0,0,0,0],  # Thumb up
@@ -71,8 +91,20 @@ D = {
 }
 DB2_5BIT.update(D)
 
+# Extra gestures (in PhysioMio but not in DB2)
+E = {
+    50: [1,0,1,0,0],  # PinchGraspMiddle
+    51: [1,0,0,1,0],  # PinchGraspRing
+    52: [1,0,0,0,1],  # PinchGraspPinkie
+}
+
 # Function to map gesture ID to 5-bit finger activation vector
-def gesture_to_5bit(gid: int, strict: bool = False):
+def gesture_to_5bit(gid: int | str, strict: bool = False):
+    if isinstance(gid, str):
+        if gid in PHYSIOMIO_TO_DB2:
+            gid = PHYSIOMIO_TO_DB2[gid]
+        else:
+            raise KeyError(f"Unmapped gesture name: {gid}")
     gid = int(gid)
     if strict and gid not in DB2_5BIT:
         raise KeyError(f"Unmapped gesture id: {gid}")

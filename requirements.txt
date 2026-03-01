@@ -2,3 +2,5 @@ torch
 matplotlib
 numpy
 pandas
+scipy
+seedir
