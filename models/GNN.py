@@ -33,6 +33,13 @@ from torch_geometric.utils import to_undirected, dense_to_sparse
 import optuna
 from optuna.trial import TrialState
 
+# Shared evaluation metrics and curves
+from evaluation.metrics import compute_multilabel_metrics, compute_curves
+from evaluation.plots import save_metric_curves
+
+# Dataset -> model adapter (standard feature tensor -> GNN sequences)
+from adapters.feature_to_gnn import feature_tensor_to_gnn_sequences
+
 
 # -----------------------------
 # Reproducibility utilities
@@ -89,6 +96,9 @@ class Config:
     tune_mode: bool = False         # Enable hyperparameter tuning
     n_trials: int = 50              # Number of optimization trials
     tune_timeout: int = 3600        # Timeout for tuning in seconds
+
+    # Data format: when True, data is standard (N, C, W, F); adapter converts to (N, W, C*F)
+    use_feature_adapter: bool = True
 
     # Misc
     seed: int = 42
@@ -272,22 +282,26 @@ class SEMGDataset(Dataset):
 
 def load_semg_dataset(cfg: Config, data_path: str) -> Tuple[TorchDataLoader, TorchDataLoader, TorchDataLoader]:
     """Load train/val/test datasets for sEMG finger prediction."""
-    # This is a placeholder - you'll need to provide actual data paths
-    # For now, we'll create dummy data for testing
+    # When use_feature_adapter: data is standard (N, C, W, F); we set cfg.seq_len=W, cfg.in_features=C*F
+    # Otherwise: data is already (N, seq_len, in_features) for GNN
+    if cfg.use_feature_adapter:
+        C, W, F = 4, 20, 11  # channels, windows, features per channel per window
+        cfg.seq_len = W
+        cfg.in_features = C * F
+        num_samples = 1000
+        train_sequences = torch.randn(num_samples, C, W, F)
+        val_sequences = torch.randn(200, C, W, F)
+        test_sequences = torch.randn(200, C, W, F)
+    else:
+        num_samples = 1000
+        train_sequences = torch.randn(num_samples, cfg.seq_len, cfg.in_features)
+        val_sequences = torch.randn(200, cfg.seq_len, cfg.in_features)
+        test_sequences = torch.randn(200, cfg.seq_len, cfg.in_features)
 
-    # Create dummy data
-    num_samples = 1000
-    # Generate random sEMG sequences
-    train_sequences = torch.randn(num_samples, cfg.seq_len, cfg.in_features)
-    val_sequences = torch.randn(200, cfg.seq_len, cfg.in_features)
-    test_sequences = torch.randn(200, cfg.seq_len, cfg.in_features)
-    
-    # Generate random binary finger labels (0 or 1 for each finger)
     train_labels = torch.randint(0, 2, (num_samples, cfg.out_dim)).float()
     val_labels = torch.randint(0, 2, (200, cfg.out_dim)).float()
     test_labels = torch.randint(0, 2, (200, cfg.out_dim)).float()
 
-    # Create datasets
     train_dataset = SEMGDataset.__new__(SEMGDataset)
     train_dataset.sequences = train_sequences
     train_dataset.labels = train_labels
@@ -300,7 +314,6 @@ def load_semg_dataset(cfg: Config, data_path: str) -> Tuple[TorchDataLoader, Tor
     test_dataset.sequences = test_sequences
     test_dataset.labels = test_labels
 
-    # Create data loaders
     train_loader = TorchDataLoader(train_dataset, batch_size=cfg.batch_size, shuffle=True)
     val_loader = TorchDataLoader(val_dataset, batch_size=cfg.batch_size, shuffle=False)
     test_loader = TorchDataLoader(test_dataset, batch_size=cfg.batch_size, shuffle=False)
@@ -363,7 +376,12 @@ def train_one_epoch(model, train_loader, optimizer, device, cfg: Config) -> floa
     total_loss = 0.0
     total_samples = 0
 
-    for sequences, targets in train_loader:
+    for batch, targets in train_loader:
+        if cfg.use_feature_adapter:
+            # batch: (N, C, W, F) -> sequences: (N, W, C*F)
+            sequences = feature_tensor_to_gnn_sequences(batch)
+        else:
+            sequences = batch
         sequences, targets = sequences.to(device), targets.to(device)
 
         optimizer.zero_grad()
@@ -379,15 +397,27 @@ def train_one_epoch(model, train_loader, optimizer, device, cfg: Config) -> floa
 
 
 @torch.no_grad()
-def evaluate(model, data_loader, device) -> Dict[str, float]:
-    """Evaluate sEMG finger prediction model. Returns metrics dict."""
+def evaluate(
+    model,
+    data_loader,
+    device,
+    cfg: Config,
+    *,
+    output_dir: Optional[str] = None,
+    save_curves: bool = False,
+) -> Dict[str, float]:
+    """Evaluate sEMG finger prediction model. Returns metrics dict (all values float)."""
     model.eval()
     total_loss = 0.0
     all_predictions = []
     all_targets = []
     total_samples = 0
 
-    for sequences, targets in data_loader:
+    for batch, targets in data_loader:
+        if cfg.use_feature_adapter:
+            sequences = feature_tensor_to_gnn_sequences(batch)
+        else:
+            sequences = batch
         sequences, targets = sequences.to(device), targets.to(device)
 
         predictions = model(sequences)
@@ -399,15 +429,44 @@ def evaluate(model, data_loader, device) -> Dict[str, float]:
         all_predictions.append(predictions.cpu())
         all_targets.append(targets.cpu())
 
-    # Concatenate all predictions and targets
     all_predictions = torch.cat(all_predictions, dim=0)
     all_targets = torch.cat(all_targets, dim=0)
 
-    # Compute metrics
-    metrics = finger_accuracy(all_predictions, all_targets)
+    metrics = compute_multilabel_metrics(all_predictions, all_targets)
     metrics["loss"] = total_loss / max(1, total_samples)
 
-    return metrics
+    # Flatten to Dict[str, float] for return and checkpoint compatibility
+    result: Dict[str, float] = {
+        "loss": metrics["loss"],
+        "accuracy": metrics["accuracy"],
+        "finger_accuracy": metrics["finger_accuracy"],
+        "precision": metrics["precision_macro"],
+        "recall": metrics["recall_macro"],
+        "f1": metrics["f1_macro"],
+        "auprc_macro": metrics["auprc_macro"],
+        "auroc_macro": metrics["auroc_macro"],
+        "auprc_micro": metrics["auprc_micro"],
+        "auroc_micro": metrics["auroc_micro"],
+    }
+    for fname, fmetrics in metrics.get("per_finger", {}).items():
+        for mname, val in fmetrics.items():
+            if isinstance(val, (int, float)):
+                result[f"{fname}_{mname}"] = float(val)
+
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
+        metrics_path = os.path.join(output_dir, "metrics_full.json")
+        with open(metrics_path, "w") as f:
+            json.dump({k: v for k, v in metrics.items() if k != "per_finger"}, f, indent=2)
+        pf = metrics.get("per_finger")
+        if pf is not None:
+            with open(os.path.join(output_dir, "metrics_per_finger.json"), "w") as f:
+                json.dump(pf, f, indent=2)
+        if save_curves:
+            curve_data = compute_curves(all_predictions, all_targets)
+            save_metric_curves(curve_data, output_dir)
+
+    return result
 
 
 # -----------------------------
@@ -500,7 +559,7 @@ def objective(trial: optuna.Trial, base_cfg: Config) -> float:
         train_loss = train_one_epoch(model, train_loader, optimizer, device, cfg)
 
         # Validate
-        val_metrics = evaluate(model, val_loader, device)
+        val_metrics = evaluate(model, val_loader, device, cfg)
         val_f1 = val_metrics["f1"]
         scheduler.step(val_f1)
 
@@ -609,7 +668,7 @@ def main(cfg: Config):
         train_loss = train_one_epoch(model, train_loader, optimizer, device, cfg)
 
         # Validate
-        val_metrics = evaluate(model, val_loader, device)
+        val_metrics = evaluate(model, val_loader, device, cfg)
         scheduler.step(val_metrics["f1"])
 
         # Check for best model
@@ -638,7 +697,7 @@ def main(cfg: Config):
     # -------------------------
     print("[Final] Loading best model and evaluating on test set...")
     load_checkpoint(best_ckpt_path, model)
-    test_metrics = evaluate(model, test_loader, device)
+    test_metrics = evaluate(model, test_loader, device, cfg)
 
     print("[Final Results]")
     print(f"  Test Loss: {test_metrics['loss']:.4f}")
@@ -647,6 +706,8 @@ def main(cfg: Config):
     print(f"  Test Precision: {test_metrics['precision']:.4f}")
     print(f"  Test Recall: {test_metrics['recall']:.4f}")
     print(f"  Test F1: {test_metrics['f1']:.4f}")
+    print(f"  Test AUPRC (macro): {test_metrics['auprc_macro']:.4f}")
+    print(f"  Test AUROC (macro): {test_metrics['auroc_macro']:.4f}")
 
     print(f"[Complete] Best model saved to {best_ckpt_path}")
     return test_metrics
@@ -694,6 +755,12 @@ def build_argparser() -> argparse.Namespace:
     p.add_argument("--tune_mode", action="store_true", help="Enable hyperparameter tuning mode.")
     p.add_argument("--n_trials", type=int, default=50, help="Number of tuning trials.")
     p.add_argument("--tune_timeout", type=int, default=3600, help="Timeout for tuning in seconds.")
+
+    # Data format
+    p.add_argument("--use_feature_adapter", action="store_true", default=True,
+                   help="Use adapter: input (N,C,W,F) -> GNN (N,W,C*F). Default True.")
+    p.add_argument("--no_feature_adapter", action="store_false", dest="use_feature_adapter",
+                   help="Disable adapter; data is already (N, seq_len, in_features).")
 
     # Misc
     p.add_argument("--seed", type=int, default=42, help="Random seed.")
