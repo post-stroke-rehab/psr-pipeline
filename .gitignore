@@ -9,3 +9,7 @@ __pycache__/
 datasets/toy_semg/
 .venv
 physiomio/
+
+# Ignore processed and raw data
+datasets/processed/
+datasets/raw/

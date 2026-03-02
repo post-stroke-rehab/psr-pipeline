@@ -57,4 +57,10 @@ def preprocess_emg(emg: np.ndarray, fs: float, config: PreprocessConfig = Prepro
     expected_dim = windows.shape[2] * 12
     assert X.shape[1] == expected_dim, f"Feature dim mismatch: got {X.shape[1]}, expected {expected_dim}"
 
+    # X is (W, C*F)
+    W = X.shape[0]
+    C = windows.shape[2]
+    F = X.shape[1] // C
+    X = X.reshape(W, C, F).transpose(1, 0, 2)  # (C, W, F)
+    
     return X
