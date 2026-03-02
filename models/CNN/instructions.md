@@ -38,4 +38,4 @@ your_project/
 The only file you have to run is main.py. Before training a model, change in config.py what you need, the most important configs (model size, epochs, normal or knowledge distillation, etc...) are very visible. And finally if you want to change the name of the saved model files, you can change that in main.py by changing the very visible part.
 
 ## Extra
-Again, I know these are crazy amount of filesm but at least there is zero brain involved. NGL I have been vibecoding this for some time, and I haven't tested anything, it's kinda time to go to bed, so if you're reading this, THIS IS NOT TESTED, DW I WILL TEST IT SOON, but I hope you see the vision.
+Again, I know these are crazy amount of filesm but at least there is zero brain involved. NGL I have been vibecoding this for some time, and I haven't tested anything, it's kinda time to go to bed, so if you're reading this, THIS IS NOT TESTED, DW I WILL TEST IT SOON, but I hope you see the vision. And definitely some changes are coming to evaluate.py as it is tooo verbose.
