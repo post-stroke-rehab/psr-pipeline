@@ -98,6 +98,7 @@ E = {
     52: [1,0,0,0,1],  # PinchGraspPinkie
 }
 
+DB2_5BIT.update(E)
 # Function to map gesture ID to 5-bit finger activation vector
 def gesture_to_5bit(gid: int | str, strict: bool = False):
     if isinstance(gid, str):

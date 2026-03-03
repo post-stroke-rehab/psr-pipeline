@@ -58,7 +58,7 @@ def _load_npz_sample(path: Path) -> Tuple[np.ndarray, np.ndarray, Optional[float
 
 
 def _load_pt_sample(path: Path) -> Tuple[np.ndarray, np.ndarray, Optional[float], Dict[str, Any]]:
-    obj = torch.load(path, map_location="cpu")
+    obj = torch.load(path, map_location="cpu", weights_only=True)
     if not isinstance(obj, dict):
         raise ValueError(f"{path} must be a dict when using .pt raw samples.")
     if "emg" not in obj or "y" not in obj:
@@ -103,7 +103,7 @@ class ProcessedTensorDataset(Dataset):
     """
     def __init__(self, split_path: str | Path):
         split_path = Path(split_path)
-        payload = torch.load(split_path, map_location="cpu")
+        payload = torch.load(split_path, map_location="cpu", weights_only=True)
         if not isinstance(payload, dict) or "X" not in payload or "y" not in payload:
             raise ValueError(f"Processed split file invalid: {split_path}")
 

@@ -1,6 +1,13 @@
-torch
-matplotlib
 numpy
 pandas
+pyarrow
 scipy
+PyWavelets
+scikit-learn
+matplotlib
+torch
+torchvision
+torchaudio
 seedir
+torch_geometric
+optuna
