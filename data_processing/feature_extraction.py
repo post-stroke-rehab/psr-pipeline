@@ -41,6 +41,15 @@ def extract_features(segments, fs=1000, threshold=0.01, wamp_threshold=0.05,
     # --- Helper for per-window feature extraction ---
     def compute_window_features(x):
         x = np.asarray(x).flatten()
+
+        # Guard against very short or non-finite windows
+        if x.size < 4 or not np.isfinite(x).all():
+            return {
+                'RMS': 0.0, 'MAV': 0.0, 'IEMG': 0.0, 'WL': 0.0, 'VAR': 0.0,
+                'ZC': 0.0, 'SSC': 0.0, 'WAMP': 0.0,
+                'MNF': 0.0, 'MDF': 0.0, 'SEN': 0.0, 'TP': 0.0
+            }
+
         dx = np.diff(x)
 
         # --- Time domain ---
@@ -55,12 +64,32 @@ def extract_features(segments, fs=1000, threshold=0.01, wamp_threshold=0.05,
 
         # --- Frequency domain ---
         f, Pxx = welch(x, fs=fs, nperseg=min(256, len(x)))
-        Pxx = Pxx / np.sum(Pxx + 1e-12)
-        MNF = np.sum(f * Pxx)
-        cumulative_power = np.cumsum(Pxx)
-        MDF = f[np.where(cumulative_power >= 0.5)[0][0]]
-        SEN = -np.sum(Pxx * np.log2(Pxx + 1e-12))
-        TP  = np.sum(Pxx)
+
+        # Guard against degenerate spectra
+        if Pxx.size == 0 or f.size == 0 or f.size != Pxx.size or not np.isfinite(Pxx).all():
+            MNF = 0.0
+            MDF = 0.0
+            SEN = 0.0
+            TP  = 0.0
+        else:
+            TP = float(np.sum(Pxx))
+
+            # If there's effectively no power, treat it as degenerate
+            if TP <= 1e-12:
+                MNF = 0.0
+                MDF = 0.0
+                SEN = 0.0
+                TP  = 0.0
+            else:
+                Pn = Pxx / (TP + 1e-12)
+
+                MNF = np.sum(f * Pn)
+
+                cumulative_power = np.cumsum(Pn)
+                idx = np.where(cumulative_power >= 0.5)[0]
+                MDF = f[idx[0]] if idx.size > 0 else 0.0
+
+                SEN = -np.sum(Pn * np.log2(Pn + 1e-12))
 
         return {
             'RMS': RMS, 'MAV': MAV, 'IEMG': IEMG, 'WL': WL, 'VAR': VAR,

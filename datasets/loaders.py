@@ -2,186 +2,257 @@
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
 
-from datasets.dataset import RawSample, ProcessedTensorDataset, load_raw_sample
-
-# uses your existing preprocessing.py
-from data_processing.processing.preprocess import preprocess_emg
+from datasets.dataset import ProcessedTensorDataset
+from data_processing.preprocess import preprocess_emg
 from data_processing.preprocess_config import PreprocessConfig
 
+import pandas as pd
+from data_processing.mapping import gesture_to_5bit
 
+
+# Loader configuration used by training_pipeline.py
 @dataclass(frozen=True)
-class SplitConfig:
-    train: float = 0.8
-    val: float = 0.1
-    test: float = 0.1
-    seed: int = 42
-
-
-@dataclass(frozen=True)
-class DataConfig:
-    raw_dir: str = "datasets/raw"
-    processed_dir: str = "datasets/processed"
-    out_dim: int = 5
+class LoaderConfig:
     batch_size: int = 64
     num_workers: int = 0
+    seed: int = 42
+    out_dim: int = 5
     pin_memory: bool = True
     drop_last: bool = False
 
-
-def _split_indices(n: int, split: SplitConfig) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    if n <= 0:
-        raise ValueError("No samples found to split.")
-    total = split.train + split.val + split.test
-    if abs(total - 1.0) > 1e-6:
-        raise ValueError(f"Split fractions must sum to 1. Got {total}.")
-
-    rng = np.random.default_rng(split.seed)
-    idx = np.arange(n)
-    rng.shuffle(idx)
-
-    n_train = int(round(n * split.train))
-    n_val = int(round(n * split.val))
-    n_test = n - n_train - n_val
-
-    train_idx = idx[:n_train]
-    val_idx = idx[n_train : n_train + n_val]
-    test_idx = idx[n_train + n_val :]
-
-    if len(test_idx) != n_test:
-        test_idx = idx[n_train + n_val : n_train + n_val + n_test]
-
-    return train_idx, val_idx, test_idx
+    # PhysioMio settings
+    use_physiomio_if_missing: bool = True
+    physiomio_raw_dir: str = "datasets/raw/physiomio"
+    physiomio_fs: float = 2000.0
+    impaired_only: bool = True
+    min_segment_samples: int = 200
+    skip_rest: bool = False
+    max_patients: Optional[int] = 22
 
 
-def _find_raw_samples(raw_dir: Path) -> List[RawSample]:
-    """
-    Priority order:
-      1) datasets/raw/manifest.json (recommended)
-      2) auto-discover .npz and .pt files directly under raw_dir (or subfolders)
-
-    manifest.json schema:
-    {
-      "samples": [
-        {"path": "subject1/trial_01.npz", "fs": 2000},
-        {"path": "subject1/trial_02.pt",  "fs": 2000}
-      ]
-    }
-    """
-    manifest = raw_dir / "manifest.json"
-    samples: List[RawSample] = []
-
-    if manifest.exists():
-        obj = json.loads(manifest.read_text())
-        entries = obj.get("samples", [])
-        for e in entries:
-            p = raw_dir / e["path"]
-            fs = e.get("fs", None)
-            samples.append(RawSample(path=p, fs=float(fs) if fs is not None else None))
-        return samples
-
-    # auto-discover fallback
-    for p in raw_dir.rglob("*"):
-        if p.is_file() and p.suffix.lower() in (".npz", ".pt"):
-            samples.append(RawSample(path=p, fs=None))
-
-    # stable ordering
-    samples.sort(key=lambda s: str(s.path))
-    return samples
-
-
+# Makes sure a folder exists
 def _ensure_dir(path: Path) -> None:
     path.mkdir(parents=True, exist_ok=True)
 
 
-def _processed_split_paths(processed_dir: Path) -> Dict[str, Path]:
+# Where we look for train/val/test processed tensors
+def _processed_paths(processed_dir: str | Path, train_file: str, val_file: str, test_file: str) -> Dict[str, Path]:
+    p = Path(processed_dir)
     return {
-        "train": processed_dir / "train.pt",
-        "val": processed_dir / "val.pt",
-        "test": processed_dir / "test.pt",
+        "train": p / train_file,
+        "val": p / val_file,
+        "test": p / test_file,
     }
 
 
-def processed_exists(processed_dir: str | Path) -> bool:
-    processed_dir = Path(processed_dir)
-    paths = _processed_split_paths(processed_dir)
-    return all(p.exists() for p in paths.values())
+# Quick check to see if processed data already exists
+def _processed_exist(paths: Dict[str, Path]) -> bool:
+    return all(paths[k].exists() for k in ("train", "val", "test"))
 
 
-def build_processed_splits_if_needed(
+# Finds all PhysioMio parquet files
+# We usually train only on impaired_arm recordings
+def _find_physiomio_parquets(raw_root: Path, impaired_only: bool) -> List[Path]:
+    if not raw_root.exists():
+        return []
+
+    if impaired_only:
+        return sorted(raw_root.rglob("impaired_arm/*.parquet"))
+
+    return sorted(raw_root.rglob("healthy_arm/*.parquet")) + \
+           sorted(raw_root.rglob("impaired_arm/*.parquet"))
+
+
+# Extracts patient ID from the folder name (e.g., patient12)
+def _patient_id_from_path(p: Path) -> str:
+    for part in p.parts:
+        if part.lower().startswith("patient"):
+            return part
+    return "unknown_patient"
+
+
+# Collects EMG channel columns (channel_01 ... channel_64)
+def _get_channel_cols(df: pd.DataFrame) -> List[str]:
+    cols = [c for c in df.columns if str(c).startswith("channel_")]
+    if not cols:
+        raise ValueError("No channel_* columns found in parquet.")
+    return sorted(cols)
+
+
+# Breaks a recording into contiguous chunks of the same movement_type
+# Each chunk becomes one training sample
+def _iter_contiguous_segments(mv: np.ndarray) -> List[Tuple[int, int, str]]:
+    if mv.size == 0:
+        return []
+
+    starts = [0]
+    for i in range(1, len(mv)):
+        if mv[i] != mv[i - 1]:
+            starts.append(i)
+
+    ends = starts[1:] + [len(mv)]
+    return [(s, e, str(mv[s])) for s, e in zip(starts, ends)]
+
+
+# Splits by patient instead of randomly by segment
+# This prevents leakage between train and test
+def _patient_split_indices(patient_keys: List[str], cfg: LoaderConfig):
+    rng = np.random.default_rng(cfg.seed)
+    patients = sorted(set(patient_keys))
+    rng.shuffle(patients)
+
+    train_frac = 0.7
+    val_frac = 0.15
+    test_frac = 0.15
+
+    nP = len(patients)
+    n_train = int(round(nP * train_frac))
+    n_val = int(round(nP * val_frac))
+
+    trainP = set(patients[:n_train])
+    valP = set(patients[n_train : n_train + n_val])
+    testP = set(patients[n_train + n_val :])
+
+    idx = np.arange(len(patient_keys))
+
+    train_idx = idx[[p in trainP for p in patient_keys]]
+    val_idx = idx[[p in valP for p in patient_keys]]
+    test_idx = idx[[p in testP for p in patient_keys]]
+
+    return train_idx, val_idx, test_idx, patients
+
+
+# Builds processed splits from raw PhysioMio parquet files
+def _build_processed_from_physiomio(
     *,
-    data_cfg: DataConfig,
-    split_cfg: SplitConfig,
+    raw_root: Path,
+    paths: Dict[str, Path],
+    cfg: LoaderConfig,
     preprocess_cfg: Optional[PreprocessConfig] = None,
 ) -> None:
-    """
-    If datasets/processed/{train,val,test}.pt don't exist, build them from datasets/raw/.
-    """
-    raw_dir = Path(data_cfg.raw_dir)
-    processed_dir = Path(data_cfg.processed_dir)
-    _ensure_dir(processed_dir)
-
-    paths = _processed_split_paths(processed_dir)
-    if all(p.exists() for p in paths.values()):
-        return
 
     if preprocess_cfg is None:
         preprocess_cfg = PreprocessConfig()
 
-    samples = _find_raw_samples(raw_dir)
-    if len(samples) == 0:
-        raise FileNotFoundError(
-            f"No raw samples found in {raw_dir}. Add .npz/.pt files or create {raw_dir/'manifest.json'}."
-        )
+    parquets = _find_physiomio_parquets(raw_root, cfg.impaired_only)
 
-    # load + preprocess all samples into memory (fine for now; later you can stream)
+    rng = np.random.default_rng(cfg.seed)
+
+    by_patient: Dict[str, List[Path]] = {}
+    for pq in parquets:
+        pid = _patient_id_from_path(pq)
+        by_patient.setdefault(pid, []).append(pq)
+
+    patients = sorted(by_patient.keys())
+    rng.shuffle(patients)
+
+    if cfg.max_patients is not None:
+        patients = patients[:cfg.max_patients]
+
+    parquets = []
+    for pid in patients:
+        parquets.extend(by_patient[pid])
+
+    parquets = sorted(parquets)
+
+    if len(parquets) == 0:
+        raise FileNotFoundError("No PhysioMio parquet files found.")
+
+    print(f"Starting PhysioMio preprocessing ({len(parquets)} parquet files)...")
+
     X_list: List[torch.Tensor] = []
     y_list: List[torch.Tensor] = []
+    patient_keys: List[str] = []
+    unknown_labels: Dict[str, int] = {}
 
-    for s in samples:
-        if not s.path.exists():
-            raise FileNotFoundError(f"Raw sample not found: {s.path}")
+    for i_pq, pq in enumerate(parquets, start=1):
+        print(f"[{i_pq}/{len(parquets)}] Reading {pq}")
 
-        emg, y, fs_file, _meta = load_raw_sample(s.path)
-        fs = s.fs if s.fs is not None else fs_file
-        if fs is None:
-            raise ValueError(f"Missing sampling rate fs for {s.path}. Put it in the file or manifest.json.")
+        df = pd.read_parquet(pq)
 
-        # emg: (n_samples, n_channels)
-        # preprocess_emg returns X as (C, W, F) based on your code
-        X = preprocess_emg(emg, fs=fs, config=preprocess_cfg)  # (C,W,F)
-        if X.ndim != 3:
-            raise ValueError(f"Expected preprocess_emg -> (C,W,F). Got shape {X.shape} for {s.path}")
+        if "movement_type" not in df.columns:
+            raise ValueError(f"{pq} missing movement_type column.")
 
-        y = np.asarray(y).astype(np.float32).reshape(-1)
-        if y.shape[0] != data_cfg.out_dim:
-            raise ValueError(f"Expected y to have shape ({data_cfg.out_dim},). Got {y.shape} for {s.path}")
+        ch_cols = _get_channel_cols(df)
+        mv = df["movement_type"].astype(str).to_numpy()
 
-        X_list.append(torch.from_numpy(np.asarray(X, dtype=np.float32)))
-        y_list.append(torch.from_numpy(y))
+        for s, e, label in _iter_contiguous_segments(mv):
 
-    X_all = torch.stack(X_list, dim=0)  # (N,C,W,F)
-    y_all = torch.stack(y_list, dim=0)  # (N,out_dim)
+            if (e - s) < cfg.min_segment_samples:
+                continue
 
-    train_idx, val_idx, test_idx = _split_indices(X_all.shape[0], split_cfg)
+            if cfg.skip_rest and label.lower() == "rest":
+                continue
 
-    def save_split(name: str, idx: np.ndarray) -> None:
+            try:
+                y5 = np.asarray(gesture_to_5bit(label), dtype=np.float32).reshape(-1)
+            except Exception:
+                unknown_labels[label] = unknown_labels.get(label, 0) + 1
+                continue
+
+            if y5.shape[0] != cfg.out_dim:
+                raise ValueError(f"Label dim mismatch for {label}: got {y5.shape[0]}, expected {cfg.out_dim}")
+
+            emg_seg = df.iloc[s:e][ch_cols].to_numpy(dtype=np.float32)
+
+            # Full preprocessing pipeline
+            X = preprocess_emg(emg_seg, fs=float(cfg.physiomio_fs), config=preprocess_cfg)
+
+            X_list.append(torch.from_numpy(np.asarray(X, dtype=np.float32)))
+            y_list.append(torch.from_numpy(y5))
+            patient_keys.append(_patient_id_from_path(pq))
+
+            if len(X_list) % 500 == 0:
+                print(f"Built {len(X_list)} samples so far...")
+
+    if unknown_labels:
+        top = sorted(unknown_labels.items(), key=lambda kv: kv[1], reverse=True)[:10]
+        raise ValueError(
+            "movement_type labels not covered by mapping.py: "
+            + ", ".join([f"{k}({v})" for k, v in top])
+        )
+
+    if len(X_list) == 0:
+        raise ValueError("No usable segments were produced.")
+
+    # Make all samples the same (C, W, F) so torch.stack works.
+    W_max = max(int(x.shape[1]) for x in X_list)
+
+    X_fixed: List[torch.Tensor] = []
+    for x in X_list:
+        C, W, F = x.shape
+
+        if W < W_max:
+            pad = torch.zeros((C, W_max - W, F), dtype=x.dtype)
+            x = torch.cat([x, pad], dim=1)
+        elif W > W_max:
+            x = x[:, :W_max, :]
+
+        X_fixed.append(x)
+
+    X_all = torch.stack(X_fixed, dim=0)
+    y_all = torch.stack(y_list, dim=0)
+
+    train_idx, val_idx, test_idx, patients = _patient_split_indices(patient_keys, cfg)
+
+    def save_split(name: str, split_idx: np.ndarray) -> None:
         payload = {
-            "X": X_all[idx],
-            "y": y_all[idx],
+            "X": X_all[split_idx],
+            "y": y_all[split_idx],
             "meta": {
-                "raw_dir": str(raw_dir),
-                "n_total": int(X_all.shape[0]),
-                "split": {"train": split_cfg.train, "val": split_cfg.val, "test": split_cfg.test},
-                "seed": split_cfg.seed,
+                "source": "physiomio",
+                "patients": patients,
+                "seed": cfg.seed,
+                "fs": float(cfg.physiomio_fs),
+                "impaired_only": bool(cfg.impaired_only),
             },
         }
         torch.save(payload, paths[name])
@@ -190,28 +261,32 @@ def build_processed_splits_if_needed(
     save_split("val", val_idx)
     save_split("test", test_idx)
 
+    print(f"Preprocessing complete. Saved train/val/test to {paths['train'].parent}")
 
+
+# Creates PyTorch DataLoaders from the processed splits
 def make_dataloaders(
     *,
-    data_cfg: DataConfig,
-    split_cfg: SplitConfig,
+    processed_dir: str = "datasets/processed",
+    train_file: str = "train.pt",
+    val_file: str = "val.pt",
+    test_file: str = "test.pt",
+    cfg: LoaderConfig = LoaderConfig(),
     preprocess_cfg: Optional[PreprocessConfig] = None,
-) -> Tuple[DataLoader, DataLoader, DataLoader]:
-    """
-    Main entry:
-      - ensures processed splits exist (builds from raw if missing)
-      - returns PyTorch DataLoaders over (X, y) where:
-          X: (C,W,F)
-          y: (out_dim,)
-    """
-    build_processed_splits_if_needed(
-        data_cfg=data_cfg,
-        split_cfg=split_cfg,
-        preprocess_cfg=preprocess_cfg,
-    )
+):
 
-    processed_dir = Path(data_cfg.processed_dir)
-    paths = _processed_split_paths(processed_dir)
+    paths = _processed_paths(processed_dir, train_file, val_file, test_file)
+    _ensure_dir(Path(processed_dir))
+
+    # If processed files already exist, nothing to do
+    if not _processed_exist(paths) and cfg.use_physiomio_if_missing:
+        raw_root = Path(cfg.physiomio_raw_dir)
+        _build_processed_from_physiomio(
+            raw_root=raw_root,
+            paths=paths,
+            cfg=cfg,
+            preprocess_cfg=preprocess_cfg,
+        )
 
     train_ds = ProcessedTensorDataset(paths["train"])
     val_ds = ProcessedTensorDataset(paths["val"])
@@ -219,26 +294,28 @@ def make_dataloaders(
 
     train_loader = DataLoader(
         train_ds,
-        batch_size=data_cfg.batch_size,
+        batch_size=cfg.batch_size,
         shuffle=True,
-        num_workers=data_cfg.num_workers,
-        pin_memory=data_cfg.pin_memory,
-        drop_last=data_cfg.drop_last,
+        num_workers=cfg.num_workers,
+        pin_memory=cfg.pin_memory,
+        drop_last=cfg.drop_last,
     )
+
     val_loader = DataLoader(
         val_ds,
-        batch_size=data_cfg.batch_size,
+        batch_size=cfg.batch_size,
         shuffle=False,
-        num_workers=data_cfg.num_workers,
-        pin_memory=data_cfg.pin_memory,
+        num_workers=cfg.num_workers,
+        pin_memory=cfg.pin_memory,
         drop_last=False,
     )
+
     test_loader = DataLoader(
         test_ds,
-        batch_size=data_cfg.batch_size,
+        batch_size=cfg.batch_size,
         shuffle=False,
-        num_workers=data_cfg.num_workers,
-        pin_memory=data_cfg.pin_memory,
+        num_workers=cfg.num_workers,
+        pin_memory=cfg.pin_memory,
         drop_last=False,
     )
 

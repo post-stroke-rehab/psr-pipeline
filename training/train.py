@@ -1,4 +1,4 @@
-# training/training_pipeline.py
+# training/train.py
 import os
 import json
 import time
@@ -48,7 +48,7 @@ class TrainConfig:
 
     use_feature_adapter: bool = True
 
-    processed_dir: str = "datasets/processed"
+    processed_dir: str = "datasets/processed/physiomio"
     train_file: str = "train.pt"
     val_file: str = "val.pt"
     test_file: str = "test.pt"
@@ -56,8 +56,8 @@ class TrainConfig:
     batch_size: int = 64
     num_workers: int = 0
 
-    ckpt_dir: str = "ckpts"
-    run_dir: str = "runs"
+    ckpt_dir: str = "training/ckpts"
+    run_dir: str = "training/runs"
     resume_path: Optional[str] = None
 
     save_curves: bool = False
@@ -91,8 +91,8 @@ def build_model(cfg: TrainConfig, sample_x: torch.Tensor) -> nn.Module:
             out_dim=cfg.out_dim,
             batch_size=cfg.batch_size,
             device=cfg.device,
-            use_feature_adapter=False,  # we already adapted before calling model
         )
+        
         return SEMGFingerPredictor(gcfg)
 
     raise ValueError(f"Unknown model_name='{cfg.model_name}'. Use 'lstm' or 'gnn'.")
@@ -154,6 +154,7 @@ def eval_loop(
         "auroc_macro": float(metrics["auroc_macro"]),
         "auprc_micro": float(metrics["auprc_micro"]),
         "auroc_micro": float(metrics["auroc_micro"]),
+        "per_finger": metrics["per_finger"],
     }
 
     if output_dir is not None:
@@ -200,7 +201,7 @@ def load_checkpoint(
     optimizer: Optional[torch.optim.Optimizer] = None,
     scheduler: Optional[Any] = None,
 ) -> Tuple[int, float]:
-    payload = torch.load(path, map_location="cpu")
+    payload = torch.load(path, map_location="cpu", weights_only=True)
     model.load_state_dict(payload["model_state"])
 
     if optimizer is not None and payload.get("optimizer_state") is not None:
@@ -216,6 +217,12 @@ def load_checkpoint(
 def train_loop(cfg: TrainConfig) -> Dict[str, float]:
     set_seed(cfg.seed)
     device = torch.device(cfg.device)
+    
+    if torch.cuda.is_available():
+        gpu_name = torch.cuda.get_device_name(0)
+        print(f"[Device] Running on CUDA: {gpu_name}")
+    else:
+        print("[Device] Running on CPU")
 
     loader_cfg = LoaderConfig(
         batch_size=cfg.batch_size,
@@ -231,6 +238,25 @@ def train_loop(cfg: TrainConfig) -> Dict[str, float]:
         cfg=loader_cfg,
     )
 
+    def print_label_balance(loader):
+        total = 0
+        pos = None
+
+        for X, y in loader:
+            y = y.float()
+            if pos is None:
+                pos = y.sum(dim=0)
+            else:
+                pos += y.sum(dim=0)
+            total += y.shape[0]
+
+        rates = pos / total
+        print("\n[Train Label Positive Rates]")
+        for i, r in enumerate(rates):
+            print(f"  finger_{i}: {r.item():.3f}")
+
+    print_label_balance(train_loader)
+
     x0, y0 = next(iter(train_loader))
     if cfg.use_feature_adapter:
         x0 = feature_tensor_to_sequences(x0)
@@ -243,7 +269,6 @@ def train_loop(cfg: TrainConfig) -> Dict[str, float]:
         factor=cfg.lr_factor,
         patience=cfg.lr_patience,
         min_lr=cfg.min_lr,
-        verbose=True,
     )
 
     os.makedirs(cfg.ckpt_dir, exist_ok=True)
@@ -341,15 +366,43 @@ def train_loop(cfg: TrainConfig) -> Dict[str, float]:
     test_metrics = eval_loop(model, test_loader, device, cfg, output_dir=test_out_dir)
 
     print("[Test Results]")
+
     for k, v in test_metrics.items():
-        print(f"  {k}: {v:.4f}")
+        if k != "per_finger":
+            print(f"  {k}: {v:.4f}")
+
+    print("\n[Per-Finger Metrics]")
+    for finger, stats in test_metrics["per_finger"].items():
+        print(
+            f"  {finger}: "
+            f"F1={stats['f1']:.4f}, "
+            f"Precision={stats['precision']:.4f}, "
+            f"Recall={stats['recall']:.4f}, "
+            f"AUPRC={stats['auprc']:.4f}, "
+            f"AUROC={stats['auroc']:.4f}"
+        )
 
     with open(os.path.join(run_path, "config.json"), "w") as f:
         json.dump(asdict(cfg), f, indent=2)
 
     return test_metrics
 
-
 if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--model", type=str, default="lstm",
+                        choices=["lstm", "gnn", "cnn"])
+    parser.add_argument("--epochs", type=int, default=30)
+    parser.add_argument("--lr", type=float, default=1e-3)
+    parser.add_argument("--batch_size", type=int, default=64)
+
+    args = parser.parse_args()
+
     cfg = TrainConfig()
+    cfg.model_name = args.model
+    cfg.epochs = args.epochs
+    cfg.lr = args.lr
+    cfg.batch_size = args.batch_size
+
     train_loop(cfg)
