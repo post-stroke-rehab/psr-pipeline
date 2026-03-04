@@ -144,7 +144,7 @@ class CNN_Nano(nn.Module): #Parameters: ~100K
         x = torch.flatten(x, 1)
         x = F.relu(self.fc1(x))
         x = self.dropout(x)
-        x = torch.sigmoid(self.fc2(x))
+        x = self.fc2(x) 
         return x
 
 
@@ -183,7 +183,7 @@ class CNN_Micro(nn.Module): #Parameters: ~250k
         x = torch.flatten(x, 1)
         x = F.relu(self.fc1(x))
         x = self.dropout(x)
-        x = torch.sigmoid(self.fc2(x))
+        x = self.fc2(x) 
         return x
 
 
@@ -214,8 +214,14 @@ class CNN_Base(nn.Module): #Parameters: ~700k
         
         # MLP
         # After 2 pools: 200→198→194→97→89→74→37
-        self.flattened_size = 37 * conv4_out
-        self.fc1 = nn.Linear(self.flattened_size, fc1_out)
+        # self.flattened_size = 37 * conv4_out
+        # self.fc1 = nn.Linear(self.flattened_size, fc1_out)
+        # self.dropout = nn.Dropout(cfg.dropout)
+        # self.fc2 = nn.Linear(fc1_out, cfg.out_dim)
+
+        # commented out above cuz flattened size depends on seq_len after conv/pool,
+        # so using LazyLinear to infer the input feature dimension at RT
+        self.fc1 = nn.LazyLinear(fc1_out)
         self.dropout = nn.Dropout(cfg.dropout)
         self.fc2 = nn.Linear(fc1_out, cfg.out_dim)
     
@@ -240,7 +246,7 @@ class CNN_Base(nn.Module): #Parameters: ~700k
         x = torch.flatten(x, 1)
         x = F.relu(self.fc1(x))
         x = self.dropout(x)
-        x = torch.sigmoid(self.fc2(x))
+        x = self.fc2(x) 
         return x
 
 
@@ -308,7 +314,7 @@ class CNN_Large(nn.Module): #Parameters: ~1.5M
         x = torch.flatten(x, 1)
         x = F.relu(self.fc1(x))
         x = self.dropout(x)
-        x = torch.sigmoid(self.fc2(x))
+        x = self.fc2(x)             # removed sigmoid cuz training loss applies sigmoid internally
         return x
 
 
@@ -401,7 +407,7 @@ class CNN_XLarge(nn.Module): #Parameters: ~4M
         x = self.dropout1(x)
         x = F.relu(self.fc2(x))
         x = self.dropout2(x)
-        x = torch.sigmoid(self.fc3(x))
+        x = self.fc3(x)
         return x
 
 
@@ -426,9 +432,24 @@ def build_model(model_name: str, cfg: Config) -> nn.Module:
     model = model_class(cfg, scale_factor=scale_factor)
     
     # Print model size
-    n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    print(f"[Model] {model_name.upper():<10} - {n_params:,} trainable parameters (scale: {scale_factor}x)")
-    
+    # n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    # print(f"[Model] {model_name.upper():<10} - {n_params:,} trainable parameters (scale: {scale_factor}x)")
+    #LazyLinear params arent initialized until first forward pass
+    n_params = 0
+    lazy_uninitialized = False
+    for p in model.parameters():
+        if not p.requires_grad:
+            continue
+        try:
+            n_params += p.numel()
+        except ValueError:
+            lazy_uninitialized = True
+
+    if lazy_uninitialized:
+        print(f"[Model] {model_name.upper():<10} - (lazy params not initialized yet) (scale: {scale_factor}x)")
+    else:
+        print(f"[Model] {model_name.upper():<10} - {n_params:,} trainable parameters (scale: {scale_factor}x)")
+
     return model
 
 

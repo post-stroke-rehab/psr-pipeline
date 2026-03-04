@@ -19,6 +19,7 @@ from evaluation.metrics import compute_multilabel_metrics, compute_curves
 from evaluation.plots import save_metric_curves
 
 
+
 def set_seed(seed: int = 42):
     random.seed(seed)
     torch.manual_seed(seed)
@@ -60,7 +61,8 @@ class TrainConfig:
     run_dir: str = "training/runs"
     resume_path: Optional[str] = None
 
-    save_curves: bool = False
+    save_curves: bool = True
+    save_training_curves: bool = False
 
 
 def build_model(cfg: TrainConfig, sample_x: torch.Tensor) -> nn.Module:
@@ -94,13 +96,72 @@ def build_model(cfg: TrainConfig, sample_x: torch.Tensor) -> nn.Module:
         )
         
         return SEMGFingerPredictor(gcfg)
+    
+    if name == "cnn":
+        from models.CNN import cnn as cnn_impl
 
-    raise ValueError(f"Unknown model_name='{cfg.model_name}'. Use 'lstm' or 'gnn'.")
+        if sample_x.dim() != 3:
+            raise ValueError(f"CNN expects (N,W,F) before permute. Got {tuple(sample_x.shape)}")
+
+        in_features = int(sample_x.size(-1))  # F
+        seq_len = int(sample_x.size(1))       # W
+
+        cnn_cfg = cnn_impl.Config(
+            in_channels=in_features,   # channels = features
+            seq_len=seq_len,           # length = time/window
+            out_dim=cfg.out_dim,
+            use_adaptive_pool=True,   
+            conv4_kernel=5,  
+        )
+
+        base_cnn = cnn_impl.build_model(model_name="base", cfg=cnn_cfg)
+        
+        #current pipeline feeds model (N,W,features) but pytorch Conv1d expect (N,C,L) so W and features are swapped
+        class PermuteToChannelsFirst(nn.Module):
+            """Wrap a Conv1d CNN that expects (N, C, L) since our current pipeline provides (N, L, C)."""
+            def __init__(self, backbone: nn.Module):
+                super().__init__()
+                self.backbone = backbone
+
+            def forward(self, x: torch.Tensor) -> torch.Tensor:
+                # x: (N, W, F) -> (N, F, W)
+                if x.dim() != 3:
+                    raise ValueError(f"CNN wrapper expects 3D tensor (N,W,F). Got {tuple(x.shape)}")
+                x = x.permute(0, 2, 1).contiguous()
+                return self.backbone(x)
+
+        # wrap so it accepts (N,W,F) 
+        return PermuteToChannelsFirst(base_cnn)
+
+    raise ValueError(f"Unknown model_name='{cfg.model_name}'. Use 'lstm' or 'gnn' or 'cnn'.")
 
 
-def bce_logits_loss(logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
-    return F.binary_cross_entropy_with_logits(logits, targets)
+# def bce_logits_loss(logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+#     return F.binary_cross_entropy_with_logits(logits, targets)
+def bce_logits_loss(
+    logits: torch.Tensor,
+    targets: torch.Tensor,
+    *,
+    pos_weight: Optional[torch.Tensor] = None
+) -> torch.Tensor:
+    return F.binary_cross_entropy_with_logits(logits, targets, pos_weight=pos_weight)
 
+#tryihng to address class imbalance, this func just counts labels in the training dataset
+def compute_pos_weight_from_loader(train_loader, out_dim: int, device: torch.device) -> torch.Tensor:
+    pos = torch.zeros(out_dim, device=device)
+    total = 0
+
+    for _, y in train_loader:
+        y = y.float().to(device)
+        pos += y.sum(dim=0)      # positives per finger
+        total += y.size(0)       # number of samples
+
+    neg = total - pos
+    pos_weight = neg / (pos + 1e-8)
+    pos_weight = torch.clamp(pos_weight, min=1.0)
+
+    print("[pos_weight]", pos_weight.detach().cpu().tolist())
+    return pos_weight
 
 @torch.no_grad()
 def eval_loop(
@@ -110,6 +171,7 @@ def eval_loop(
     cfg: TrainConfig,
     *,
     output_dir: Optional[str] = None,
+    pos_weight: Optional[torch.Tensor] = None
 ) -> Dict[str, float]:
     model.eval()
 
@@ -133,6 +195,12 @@ def eval_loop(
         total_n += n
 
         probs = torch.sigmoid(logits)
+        #
+        pred = (probs >= cfg.threshold).float()
+        # print("avg_pred_positive_per_finger:", pred.mean(dim=0).tolist())
+        # print("avg_prob_per_finger:", probs.mean(dim=0).tolist())
+
+
         all_probs.append(probs.detach().cpu())
         all_targets.append(y.detach().cpu())
 
@@ -257,6 +325,8 @@ def train_loop(cfg: TrainConfig) -> Dict[str, float]:
 
     print_label_balance(train_loader)
 
+    pos_weight = compute_pos_weight_from_loader(train_loader, cfg.out_dim, device)
+
     x0, y0 = next(iter(train_loader))
     if cfg.use_feature_adapter:
         x0 = feature_tensor_to_sequences(x0)
@@ -289,6 +359,10 @@ def train_loop(cfg: TrainConfig) -> Dict[str, float]:
     last_ckpt = os.path.join(cfg.ckpt_dir, f"{cfg.model_name}_last.pt")
 
     patience_ctr = 0
+    
+    history = None
+    if cfg.save_training_curves:
+        history = {"epoch": [], "train_loss": [], "val_loss": [], "val_f1": []}
 
     for epoch in range(start_epoch, cfg.epochs + 1):
         model.train()
@@ -304,7 +378,7 @@ def train_loop(cfg: TrainConfig) -> Dict[str, float]:
 
             optimizer.zero_grad()
             logits = model(x)
-            loss = bce_logits_loss(logits, y)
+            loss = bce_logits_loss(logits, y, pos_weight=pos_weight)
             loss.backward()
             optimizer.step()
 
@@ -314,9 +388,14 @@ def train_loop(cfg: TrainConfig) -> Dict[str, float]:
 
         train_loss = total_loss / max(1, total_n)
 
-        val_metrics = eval_loop(model, val_loader, device, cfg)
+        val_metrics = eval_loop(model, val_loader, device, cfg, pos_weight=pos_weight)
         val_f1 = float(val_metrics["f1_macro"])
         scheduler.step(val_f1)
+        if history is not None:
+            history["epoch"].append(epoch)
+            history["train_loss"].append(train_loss)
+            history["val_loss"].append(float(val_metrics["loss"]))
+            history["val_f1"].append(val_f1)
 
         save_checkpoint(
             last_ckpt,
@@ -363,7 +442,7 @@ def train_loop(cfg: TrainConfig) -> Dict[str, float]:
     _ = load_checkpoint(best_ckpt, model=model)
 
     test_out_dir = os.path.join(run_path, "test")
-    test_metrics = eval_loop(model, test_loader, device, cfg, output_dir=test_out_dir)
+    test_metrics = eval_loop(model, test_loader, device, cfg, output_dir=test_out_dir, pos_weight=pos_weight)
 
     print("[Test Results]")
 
@@ -382,6 +461,9 @@ def train_loop(cfg: TrainConfig) -> Dict[str, float]:
             f"AUROC={stats['auroc']:.4f}"
         )
 
+    if history is not None:
+        with open(os.path.join(run_path, "training_curves.json"), "w") as f:
+            json.dump(history, f, indent=2)
     with open(os.path.join(run_path, "config.json"), "w") as f:
         json.dump(asdict(cfg), f, indent=2)
 
@@ -396,6 +478,7 @@ if __name__ == "__main__":
     parser.add_argument("--epochs", type=int, default=30)
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--batch_size", type=int, default=64)
+    parser.add_argument("--save_training_curves", action="store_true")
 
     args = parser.parse_args()
 
@@ -404,5 +487,6 @@ if __name__ == "__main__":
     cfg.epochs = args.epochs
     cfg.lr = args.lr
     cfg.batch_size = args.batch_size
+    cfg.save_training_curves = args.save_training_curves
 
     train_loop(cfg)
