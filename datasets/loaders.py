@@ -109,9 +109,15 @@ def _patient_split_indices(patient_keys: List[str], cfg: LoaderConfig):
     patients = sorted(set(patient_keys))
     rng.shuffle(patients)
 
+    #Divy wants 70/10/20  
     train_frac = 0.7
-    val_frac = 0.15
-    test_frac = 0.15
+    val_frac = 0.1
+    test_frac = 0.2
+   
+    # train_frac = 0.7
+    # val_frac = 0.15
+    # test_frac = 0.15
+
 
     nP = len(patients)
     n_train = int(round(nP * train_frac))
@@ -126,6 +132,7 @@ def _patient_split_indices(patient_keys: List[str], cfg: LoaderConfig):
     train_idx = idx[[p in trainP for p in patient_keys]]
     val_idx = idx[[p in valP for p in patient_keys]]
     test_idx = idx[[p in testP for p in patient_keys]]
+
 
     return train_idx, val_idx, test_idx, patients
 
