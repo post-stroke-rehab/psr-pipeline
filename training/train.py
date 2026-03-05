@@ -3,6 +3,9 @@ import os
 import json
 import time
 import random
+import sys
+import os
+
 from dataclasses import dataclass, asdict
 from typing import Any, Dict, Optional, Tuple
 
@@ -17,7 +20,6 @@ from adapters.feature_to_sequence import feature_tensor_to_sequences
 
 from evaluation.metrics import compute_multilabel_metrics, compute_curves
 from evaluation.plots import save_metric_curves
-
 
 def set_seed(seed: int = 42):
     random.seed(seed)
@@ -94,6 +96,13 @@ def build_model(cfg: TrainConfig, sample_x: torch.Tensor) -> nn.Module:
         )
         
         return SEMGFingerPredictor(gcfg)
+
+    if name == "cnn":
+        from models.cnn.cnn_config import
+        if sample_x.dim() != 3:
+            raise ValueError(f"LSTM expects (N,W,features). Got {tuple(sample_x.shape)}")
+            
+        
 
     raise ValueError(f"Unknown model_name='{cfg.model_name}'. Use 'lstm' or 'gnn'.")
 
