@@ -3,6 +3,9 @@ import os
 import json
 import time
 import random
+import sys
+import os
+
 from dataclasses import dataclass, asdict
 from typing import Any, Dict, Optional, Tuple
 
@@ -17,8 +20,6 @@ from adapters.feature_to_sequence import feature_tensor_to_sequences
 
 from evaluation.metrics import compute_multilabel_metrics, compute_curves
 from evaluation.plots import save_metric_curves
-
-
 
 def set_seed(seed: int = 42):
     random.seed(seed)
@@ -102,9 +103,6 @@ def build_model(cfg: TrainConfig, sample_x: torch.Tensor) -> nn.Module:
 
         if sample_x.dim() != 3:
             raise ValueError(f"CNN expects (N,W,F) before permute. Got {tuple(sample_x.shape)}")
-
-        in_features = int(sample_x.size(-1))  # F
-        seq_len = int(sample_x.size(1))       # W
 
         cnn_cfg = cnn_impl.Config(
             in_channels=in_features,   # channels = features
