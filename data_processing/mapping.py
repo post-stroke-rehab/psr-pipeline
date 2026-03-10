@@ -29,14 +29,14 @@ PHYSIOMIO_TO_DB2 = {
 
 # Exercise B, E1
 B = {
-    1:  [1,0,0,0,0],  # Thumb up
-    2:  [1,1,1,1,1],  # Extension of index+middle, flexion of others
-    3:  [1,1,1,1,1],  # Flexion of ring+little, extension of others
-    4:  [1,0,0,0,1],  # Thumb opposing base of little finger
-    5:  [1,1,1,1,1],  # Abduction of all fingers
+    1:  [0,1,1,1,1],  # Thumb up
+    2:  [1,0,0,1,1],  # Extension of index+middle, flexion of others
+    3:  [0,0,0,1,1],  # Flexion of ring+little, extension of others
+    4:  [1,0,0,0,0],  # Thumb opposing base of little finger
+    5:  [0,0,0,0,0],  # Abduction of all fingers
     6:  [1,1,1,1,1],  # Fingers flexed together in fist
-    7:  [1,1,1,1,1],  # Pointing index (index ext, others flex)
-    8:  [1,1,1,1,1],  # Adduction of extended fingers
+    7:  [1,0,1,1,1],  # Pointing index (index ext, others flex)
+    8:  [0,0,0,0,0],  # Adduction of extended fingers
     9:  [0,0,0,0,0],  # Wrist supination (axis: middle finger)
     10: [0,0,0,0,0],  # Wrist pronation (axis: middle finger)
     11: [0,0,0,0,0],  # Wrist supination (axis: little finger)
@@ -45,7 +45,7 @@ B = {
     14: [0,0,0,0,0],  # Wrist extension
     15: [0,0,0,0,0],  # Wrist radial deviation
     16: [0,0,0,0,0],  # Wrist ulnar deviation
-    17: [0,0,0,0,0],  # Wrist extension with closed hand
+    17: [1,1,1,1,1],  # Wrist extension with closed hand
 }
 DB2_5BIT.update(B)
 
@@ -54,11 +54,11 @@ C = {
     18: [1,1,1,1,1],  # 1 Large diameter grasp
     19: [1,1,1,1,1],  # 2 Small diameter grasp (power grip)
     20: [0,1,1,1,1],  # 3 Fixed hook grasp (no thumb)
-    21: [1,1,1,1,1],  # 4 Index finger extension grasp
+    21: [1,0,1,1,1],  # 4 Index finger extension grasp
     22: [1,1,1,1,1],  # 5 Medium wrap
-    23: [1,1,1,1,0],  # 6 Ring grasp
+    23: [1,1,0,0,0],  # 6 Ring grasp
     24: [0,1,1,1,1],  # 7 Prismatic four fingers grasp
-    25: [1,1,1,0,0],  # 8 Stick grasp
+    25: [1,1,1,1,1],  # 8 Stick grasp
     26: [1,1,1,0,0],  # 9 Writing tripod grasp
     27: [1,1,1,1,1],  # 10 Power sphere grasp
     28: [1,1,1,0,0],  # 11 Three finger sphere grasp
@@ -72,8 +72,8 @@ C = {
     36: [1,1,1,1,1],  # 19 Extension type grasp
     37: [1,1,1,1,1],  # 20 Power disk grasp
     38: [1,1,1,0,0],  # 21 Open bottle with a tripod grasp
-    39: [1,1,1,0,0],  # 22 Turn a screw (screwdriver / stick grasp)
-    40: [1,1,1,0,0]   # 23 Knife cutting (index extension grasp)
+    39: [1,1,1,1,1],  # 22 Turn a screw (screwdriver / stick grasp)
+    40: [1,0,1,1,1]   # 23 Knife cutting (index extension grasp)
 }
 DB2_5BIT.update(C)
 
