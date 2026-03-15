@@ -53,21 +53,34 @@ def confusion_counts(y_true_bin: np.ndarray, y_pred_bin: np.ndarray):
     return out
 
 
-def plot_cm(cm2x2, title: str, save_path: str):
+def plot_cm(cm2x2, title: str, save_path: str): # emily made the colours prettier
     # cm2x2 = [[tn, fp],[fn, tp]]
     arr = np.array(cm2x2, dtype=int)
 
-    plt.figure()
-    plt.imshow(arr)
-    plt.title(title)
-    plt.xticks([0, 1], ["Pred 0", "Pred 1"])
-    plt.yticks([0, 1], ["True 0", "True 1"])
+    plt.figure(figsize=(5, 4))
+
+    plt.imshow(
+        arr,
+        cmap="Blues",  # cleaner sequential colormap
+        vmin=0,
+        interpolation="nearest"
+    )
+    plt.colorbar()
+
+    plt.title(title, fontsize=14)
+    plt.xticks([0, 1], ["Pred 0", "Pred 1"], fontsize=11)
+    plt.yticks([0, 1], ["True 0", "True 1"], fontsize=11)
 
     for (i, j), v in np.ndenumerate(arr):
-        plt.text(j, i, str(v), ha="center", va="center")
+        plt.text(
+            j, i, str(v),
+            ha="center", va="center",
+            fontsize=13,
+            color="white" if v > arr.max() / 2 else "black"
+        )
 
     plt.tight_layout()
-    plt.savefig(save_path, dpi=150)
+    plt.savefig(save_path, dpi=200, bbox_inches="tight")
     plt.close()
 
 
