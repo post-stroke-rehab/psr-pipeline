@@ -19,7 +19,7 @@ from datasets.loaders import make_dataloaders, LoaderConfig
 from adapters.feature_to_sequence import feature_tensor_to_sequences
 
 from evaluation.metrics import compute_multilabel_metrics, compute_curves
-from evaluation.plots import save_metric_curves
+from evaluation.plots import save_metric_curves, save_loss_curves, save_confusion_matrices
 
 def set_seed(seed: int = 42):
     random.seed(seed)
@@ -231,6 +231,10 @@ def eval_loop(
         if cfg.save_curves:
             curve_data = compute_curves(probs, targets, num_classes=cfg.out_dim)
             save_metric_curves(curve_data, output_dir, prefix="", save_per_finger=False)
+            save_confusion_matrices(
+                probs, targets, output_dir,
+                threshold=cfg.threshold, num_classes=cfg.out_dim,
+            )
 
     return out
 
@@ -462,6 +466,7 @@ def train_loop(cfg: TrainConfig) -> Dict[str, float]:
     if history is not None:
         with open(os.path.join(run_path, "training_curves.json"), "w") as f:
             json.dump(history, f, indent=2)
+        save_loss_curves(history, run_path)
     with open(os.path.join(run_path, "config.json"), "w") as f:
         json.dump(asdict(cfg), f, indent=2)
 
