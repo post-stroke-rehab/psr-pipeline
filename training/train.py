@@ -103,6 +103,8 @@ def build_model(cfg: TrainConfig, sample_x: torch.Tensor) -> nn.Module:
 
         if sample_x.dim() != 3:
             raise ValueError(f"CNN expects (N,W,F) before permute. Got {tuple(sample_x.shape)}")
+        in_features = int(sample_x.size(-1))
+        seq_len = int(sample_x.size(1))
 
         cnn_cfg = cnn_impl.Config(
             in_channels=in_features,   # channels = features
