@@ -1,43 +1,19 @@
 # PSR-Pipeline: A Deep Learning Pipeline for sEMG-Based Finger Intent Prediction in Post-Stroke Rehabilitation
 
-## Abstract
-
-Post-stroke motor impairment affects upper-limb dexterity in a significant proportion of survivors, limiting independence and quality of life. Surface electromyography (sEMG) provides a non-invasive window into residual motor intent and is a key enabling technology for myoelectric prosthetic and exoskeletal control. This repository presents **PSR-Pipeline**, an end-to-end machine learning pipeline that processes raw multi-channel sEMG signals and predicts per-finger binary activation for all five fingers simultaneously. The pipeline encompasses signal preprocessing (bandpass filtering, wavelet denoising, windowed feature extraction), dataset management, and a suite of deep learning architectures — Graph Neural Network (GNN), Convolutional Neural Network (CNN), Long Short-Term Memory (LSTM) network, and a Mamba state-space model for cross-domain signal translation — all with Bayesian hyperparameter optimisation and a knowledge distillation framework for model compression. The best performing model (GNN) achieves a macro-averaged AUROC of **0.787** and macro-averaged F1 of **0.706** on the PhysioMio dataset.
-
----
-
 ## Table of Contents
 
-1. [Background & Motivation](#1-background--motivation)
-2. [Repository Structure](#2-repository-structure)
-3. [Dataset](#3-dataset)
-4. [Signal Preprocessing Pipeline](#4-signal-preprocessing-pipeline)
-5. [Feature Extraction](#5-feature-extraction)
-6. [Model Architectures](#6-model-architectures)
-7. [Training & Optimisation](#7-training--optimisation)
-8. [Evaluation & Results](#8-evaluation--results)
-9. [Installation & Quickstart](#9-installation--quickstart)
-10. [Citation & License](#10-citation--license)
+1. [Repository Structure](#1-repository-structure)
+2. [Dataset](#2-dataset)
+3. [Signal Preprocessing Pipeline](#3-signal-preprocessing-pipeline)
+4. [Feature Extraction](#4-feature-extraction)
+5. [Model Architectures](#5-model-architectures)
+6. [Training & Optimisation](#6-training--optimisation)
+7. [Evaluation & Results](#7-evaluation--results)
+8. [Installation & Quickstart](#8-installation--quickstart)
 
 ---
 
-## 1. Background & Motivation
-
-Stroke is a leading cause of long-term disability worldwide. Survivors frequently exhibit partial or complete loss of fine motor control in the hand, making activities of daily living — grasping, pinching, typing — difficult or impossible. Robotic exoskeletons driven by the patient's own residual motor signals offer a pathway to both functional assistance and active neurological rehabilitation through repetitive, intention-driven movement.
-
-sEMG records the aggregate electrical activity of skeletal muscle fibres from the skin surface, encoding volitional motor commands without surgical intervention. Decoding the latent intent from this noisy, high-dimensional signal is a challenging pattern recognition problem, complicated by inter-session variability, electrode placement drift, muscle crosstalk, and the inherently stochastic nature of motor unit recruitment.
-
-PSR-Pipeline addresses this challenge by providing a reproducible, modular framework that:
-
-- Applies clinically-established signal conditioning (bandpass + wavelet denoising).
-- Extracts a rich set of time- and frequency-domain biomarkers.
-- Benchmarks multiple deep learning paradigms suited to sequential and graph-structured data.
-- Enables rapid iteration via Bayesian hyperparameter search and experiment tracking.
-- Supports hardware integration through compact student models produced by knowledge distillation.
-
----
-
-## 2. Repository Structure
+## 1. Repository Structure
 
 ```
 psr-pipeline/
@@ -84,7 +60,7 @@ psr-pipeline/
 
 ---
 
-## 3. Dataset
+## 2. Dataset
 
 ### PhysioMio
 
@@ -108,7 +84,7 @@ This places the raw `.npz` recordings under `datasets/raw/physiomio/`. A `manife
 
 ---
 
-## 4. Signal Preprocessing Pipeline
+## 3. Signal Preprocessing Pipeline
 
 Raw sEMG is conditioned through a three-stage pipeline before feature extraction. All parameters are consolidated in `PreprocessConfig` (a frozen Python dataclass).
 
@@ -171,7 +147,7 @@ The conditioned continuous signal is partitioned into overlapping frames. Short 
 
 ---
 
-## 5. Feature Extraction
+## 4. Feature Extraction
 
 Each 200 ms window per channel is summarised by **12 scalar features** spanning time- and frequency-domain representations:
 
@@ -203,7 +179,7 @@ The Welch periodogram (`nperseg = min(256, N)`) is used for PSD estimation. Dege
 
 ---
 
-## 6. Model Architectures
+## 5. Model Architectures
 
 ### Adapter Layer
 
@@ -211,7 +187,7 @@ Before entering any model, the `(C, W, F)` feature tensor is reshaped to `(N, W,
 
 ---
 
-### 6.1 Graph Neural Network (GNN)
+### 5.1 Graph Neural Network (GNN)
 
 The GNN treats each window as a graph node and constructs a sequential graph over the temporal axis. Three convolutional operators are supported:
 
@@ -250,7 +226,7 @@ Input (batch, seq_len, in_features)
 
 ---
 
-### 6.2 Convolutional Neural Network (CNN)
+### 5.2 Convolutional Neural Network (CNN)
 
 A family of 1D CNNs optimised for low-latency on-device inference, enabling deployment on embedded hardware in a rehabilitation exoskeleton.
 
@@ -283,13 +259,13 @@ where the hard loss is binary cross-entropy against ground-truth labels and the 
 
 ---
 
-### 6.3 LSTM
+### 5.3 LSTM
 
 A standard multi-layer LSTM processes the `(N, W, C×F)` sequence and produces a per-sequence binary prediction over all five fingers. The recurrent architecture captures long-range temporal dependencies across windows that are challenging for purely local convolutional filters.
 
 ---
 
-### 6.4 Mamba (Signal Translation)
+### 5.4 Mamba (Signal Translation)
 
 A Mamba state-space model is used for **cross-domain signal translation**: mapping sEMG recorded during a hand-to-nose grasp task to the finger-intent sEMG space. This facilitates transfer when direct finger-intent recordings are limited.
 
@@ -298,9 +274,9 @@ A Mamba state-space model is used for **cross-domain signal translation**: mappi
 
 ---
 
-## 7. Training & Optimisation
+## 6. Training & Optimisation
 
-### 7.1 Training Loop
+### 6.1 Training Loop
 
 All models are trained with:
 
@@ -311,21 +287,21 @@ All models are trained with:
 - **Seed:** 42 for reproducibility (deterministic cuDNN)
 - **Device:** CUDA (automatic fallback to CPU)
 
-### 7.2 Bayesian Hyperparameter Optimisation
+### 6.2 Bayesian Hyperparameter Optimisation
 
 Hyperparameter search is powered by **Optuna** using the Tree-structured Parzen Estimator (TPE) sampler. The search space includes learning rate, hidden dimension, number of layers, dropout rate, aggregation type (GNN), and batch size. Pass `--tune` to enable.
 
-### 7.3 Checkpointing & Experiment Tracking
+### 6.3 Checkpointing & Experiment Tracking
 
 Training checkpoints (model weights + optimiser state + epoch metadata) are saved to `training/ckpts/`. Training and validation loss/F1 curves are serialised to JSON (`training_curves.json`) and can be plotted via the evaluation utilities.
 
 ---
 
-## 8. Evaluation & Results
+## 7. Evaluation & Results
 
 All metrics are computed over the held-out test split of PhysioMio. The task is **five-class multi-label binary classification** (one sigmoid output per finger, threshold = 0.5).
 
-### 8.1 Reported Metrics
+### 7.1 Reported Metrics
 
 | Metric | Description |
 |--------|-------------|
@@ -337,14 +313,14 @@ All metrics are computed over the held-out test split of PhysioMio. The task is 
 | AUROC (macro/micro) | Area under the ROC curve |
 | AUPRC (macro/micro) | Area under the Precision-Recall curve |
 
-### 8.2 Model Comparison
+### 7.2 Model Comparison
 
 | Model | Finger Acc. | F1 (macro) | AUROC (macro) | AUPRC (macro) |
 |-------|-------------|------------|---------------|---------------|
 | **GNN** | **0.683** | **0.706** | **0.787** | **0.776** |
 | CNN | 0.694 | 0.676 | 0.767 | 0.764 |
 
-### 8.3 GNN Per-Finger Breakdown
+### 7.3 GNN Per-Finger Breakdown
 
 | Finger | Precision | Recall | F1 | AUROC | AUPRC |
 |--------|-----------|--------|----|-------|-------|
@@ -354,7 +330,7 @@ All metrics are computed over the held-out test split of PhysioMio. The task is 
 | Finger 3 (Ring) | 0.596 | 0.815 | 0.688 | 0.790 | 0.768 |
 | Finger 4 (Little) | 0.579 | 0.820 | 0.678 | 0.783 | 0.761 |
 
-### 8.4 CNN Per-Finger Breakdown
+### 7.4 CNN Per-Finger Breakdown
 
 | Finger | Precision | Recall | F1 | AUROC | AUPRC |
 |--------|-----------|--------|----|-------|-------|
@@ -368,7 +344,7 @@ Confusion matrices, ROC curves, and Precision-Recall curves are saved to `metric
 
 ---
 
-## 9. Installation & Quickstart
+## 8. Installation & Quickstart
 
 ### Prerequisites
 
@@ -417,21 +393,4 @@ Add `--tune` for Bayesian hyperparameter search.
 # Edit models/CNN/config.py to select model size and training mode
 python models/CNN/main.py
 ```
-
----
-
-## 10. Citation & License
-
-If you use this pipeline in your research, please cite:
-
-```bibtex
-@software{psr_pipeline,
-  author  = {post-stroke-rehab},
-  title   = {{PSR-Pipeline}: sEMG Finger Intent Prediction for Post-Stroke Rehabilitation},
-  year    = {2024},
-  url     = {https://github.com/post-stroke-rehab/psr-pipeline}
-}
-```
-
-**Dataset:** PhysioMio — `formove-ai/physiomio` on HuggingFace.
 
