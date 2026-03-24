@@ -1,12 +1,437 @@
-# psr-pipeline
-ML Pipeline to interpret sEMG signals for finger intent prediction for Post-Stroke Rehabilitation
+# PSR-Pipeline: A Deep Learning Pipeline for sEMG-Based Finger Intent Prediction in Post-Stroke Rehabilitation
 
-## 1. Signal Preprocessing of sEMG
+## Abstract
 
-## 2. ML Model Architectures
+Post-stroke motor impairment affects upper-limb dexterity in a significant proportion of survivors, limiting independence and quality of life. Surface electromyography (sEMG) provides a non-invasive window into residual motor intent and is a key enabling technology for myoelectric prosthetic and exoskeletal control. This repository presents **PSR-Pipeline**, an end-to-end machine learning pipeline that processes raw multi-channel sEMG signals and predicts per-finger binary activation for all five fingers simultaneously. The pipeline encompasses signal preprocessing (bandpass filtering, wavelet denoising, windowed feature extraction), dataset management, and a suite of deep learning architectures — Graph Neural Network (GNN), Convolutional Neural Network (CNN), Long Short-Term Memory (LSTM) network, and a Mamba state-space model for cross-domain signal translation — all with Bayesian hyperparameter optimisation and a knowledge distillation framework for model compression. The best performing model (GNN) achieves a macro-averaged AUROC of **0.787** and macro-averaged F1 of **0.706** on the PhysioMio dataset.
 
-## 3. ML Training/Validation Modules
+---
 
-## 4. Evaluation & Benchmarking
+## Table of Contents
 
-## 5. Integration with Hardware
+1. [Background & Motivation](#1-background--motivation)
+2. [Repository Structure](#2-repository-structure)
+3. [Dataset](#3-dataset)
+4. [Signal Preprocessing Pipeline](#4-signal-preprocessing-pipeline)
+5. [Feature Extraction](#5-feature-extraction)
+6. [Model Architectures](#6-model-architectures)
+7. [Training & Optimisation](#7-training--optimisation)
+8. [Evaluation & Results](#8-evaluation--results)
+9. [Installation & Quickstart](#9-installation--quickstart)
+10. [Citation & License](#10-citation--license)
+
+---
+
+## 1. Background & Motivation
+
+Stroke is a leading cause of long-term disability worldwide. Survivors frequently exhibit partial or complete loss of fine motor control in the hand, making activities of daily living — grasping, pinching, typing — difficult or impossible. Robotic exoskeletons driven by the patient's own residual motor signals offer a pathway to both functional assistance and active neurological rehabilitation through repetitive, intention-driven movement.
+
+sEMG records the aggregate electrical activity of skeletal muscle fibres from the skin surface, encoding volitional motor commands without surgical intervention. Decoding the latent intent from this noisy, high-dimensional signal is a challenging pattern recognition problem, complicated by inter-session variability, electrode placement drift, muscle crosstalk, and the inherently stochastic nature of motor unit recruitment.
+
+PSR-Pipeline addresses this challenge by providing a reproducible, modular framework that:
+
+- Applies clinically-established signal conditioning (bandpass + wavelet denoising).
+- Extracts a rich set of time- and frequency-domain biomarkers.
+- Benchmarks multiple deep learning paradigms suited to sequential and graph-structured data.
+- Enables rapid iteration via Bayesian hyperparameter search and experiment tracking.
+- Supports hardware integration through compact student models produced by knowledge distillation.
+
+---
+
+## 2. Repository Structure
+
+```
+psr-pipeline/
+├── adapters/                  # Tensor adapters (feature tensors → model-ready sequences)
+│   ├── feature_to_gnn.py
+│   └── feature_to_sequence.py
+├── data_processing/           # Signal preprocessing and feature extraction
+│   ├── preprocess.py          # Full pipeline entry point
+│   ├── preprocess_config.py   # Dataclass-based configuration
+│   ├── bandpass_filter.py     # Butterworth bandpass filter
+│   ├── wavelet_denoise.py     # Wavelet soft-thresholding denoiser
+│   ├── windowing.py           # Sliding-window segmentation
+│   └── feature_extraction.py # 12-feature extractor (time + frequency domain)
+├── datasets/                  # PyTorch Dataset and DataLoader wrappers
+│   ├── dataset.py
+│   └── loaders.py
+├── models/
+│   ├── gnn.py                 # GCN / GraphSAGE / GAT pipeline
+│   ├── lstm.py                # LSTM finger-intent predictor
+│   ├── Mamba.ipynb            # Mamba SSM for signal translation
+│   └── CNN/                   # CNN family with knowledge distillation
+│       ├── cnn.py             # Student architectures (Nano, Micro, …)
+│       ├── teachers.py        # 1D ResNet-50/101/152 teacher models
+│       ├── distillation.py    # Distillation loss and training loop
+│       ├── config.py          # CNN hyperparameter dataclass
+│       ├── training.py
+│       ├── evaluation.py
+│       └── main.py            # Entry point
+├── training/
+│   └── train.py               # Generic training utilities
+├── evaluation/
+│   ├── metrics.py             # Multi-label metric computation
+│   └── plots.py               # ROC / PR curve visualisation
+├── metrics/                   # Saved evaluation artefacts
+│   ├── cnn/                   # CNN test-set metrics and curves
+│   └── gnn/                   # GNN test-set metrics and curves
+├── scripts/
+│   ├── download_physiomio.py  # PhysioMio dataset downloader
+│   └── run_preprocess.py      # Batch preprocessing runner
+├── dataset_visualization/     # Exploratory notebooks
+├── requirements.txt
+└── README.md
+```
+
+---
+
+## 3. Dataset
+
+### PhysioMio
+
+All experiments are conducted on the **PhysioMio** dataset, a multi-subject sEMG corpus for hand and finger gesture research hosted on HuggingFace (`formove-ai/physiomio`).
+
+**Download:**
+
+```bash
+python scripts/download_physiomio.py
+```
+
+This places the raw `.npz` recordings under `datasets/raw/physiomio/`. A `manifest.json` enumerating subject/trial pairings is required at the same level.
+
+**Processed splits** (auto-generated by the loaders, stored as `.pt` files):
+
+| Split | Path |
+|-------|------|
+| Train | `datasets/processed/physiomio/train.pt` |
+| Validation | `datasets/processed/physiomio/val.pt` |
+| Test | `datasets/processed/physiomio/test.pt` |
+
+---
+
+## 4. Signal Preprocessing Pipeline
+
+Raw sEMG is conditioned through a three-stage pipeline before feature extraction. All parameters are consolidated in `PreprocessConfig` (a frozen Python dataclass).
+
+```
+Raw sEMG (n_samples × n_channels)
+        │
+        ▼
+ [1] Bandpass Filter  ──── 20–450 Hz, 4th-order Butterworth, zero-phase
+        │
+        ▼
+ [2] Wavelet Denoising ─── sym4, 4 levels, soft threshold, universal rule, median noise estimate
+        │
+        ▼
+ [3] Sliding-Window Segmentation ── 200 ms window, 50 % overlap
+        │
+        ▼
+ Feature Extraction ────── 12 features per channel per window → (C, W, F) tensor
+```
+
+### 4.1 Bandpass Filtering
+
+A 4th-order Butterworth filter with passband 20–450 Hz attenuates low-frequency motion artefacts and high-frequency electrical interference. Zero-phase (forward–backward) filtering eliminates group delay and preserves temporal alignment across channels.
+
+**Default parameters:**
+
+| Parameter | Value |
+|-----------|-------|
+| Low cutoff | 20 Hz |
+| High cutoff | 450 Hz |
+| Filter order | 4 |
+| Phase mode | Zero-phase (`sosfiltfilt`) |
+
+### 4.2 Wavelet Denoising
+
+Residual noise is suppressed using discrete wavelet transform (DWT) soft-thresholding. The universal threshold $T = \sigma\sqrt{2\log N}$ is applied to all detail coefficients, where $\sigma$ is the noise level estimated from the first-level coefficients via the median absolute deviation (MAD) estimator $\hat{\sigma} = \text{median}(|d_1|)/0.6745$.
+
+**Default parameters:**
+
+| Parameter | Value |
+|-----------|-------|
+| Wavelet | Symlet-4 (`sym4`) |
+| Decomposition levels | 4 |
+| Threshold mode | Soft |
+| Threshold rule | Universal |
+| Noise estimator | Median (MAD) |
+
+### 4.3 Sliding-Window Segmentation
+
+The conditioned continuous signal is partitioned into overlapping frames. Short windows (200 ms) preserve temporal resolution for real-time intent decoding; 50 % overlap doubles the effective sample count.
+
+**Default parameters:**
+
+| Parameter | Value |
+|-----------|-------|
+| Window length | 200 ms |
+| Overlap fraction | 50 % |
+| Zero-padding | Disabled |
+
+**Output:** `(n_windows, window_samples, n_channels)`
+
+---
+
+## 5. Feature Extraction
+
+Each 200 ms window per channel is summarised by **12 scalar features** spanning time- and frequency-domain representations:
+
+### Time-Domain Features
+
+| Feature | Symbol | Definition |
+|---------|--------|------------|
+| Root Mean Square | RMS | $\sqrt{\frac{1}{N}\sum_{i=1}^{N} x_i^2}$ |
+| Mean Absolute Value | MAV | $\frac{1}{N}\sum_{i=1}^{N} \|x_i\|$ |
+| Integrated EMG | IEMG | $\sum_{i=1}^{N} \|x_i\|$ |
+| Waveform Length | WL | $\sum_{i=1}^{N-1} \|x_{i+1} - x_i\|$ |
+| Variance | VAR | $\frac{1}{N}\sum_{i=1}^{N}(x_i - \bar{x})^2$ |
+| Zero Crossings | ZC | Count of sign changes exceeding noise threshold |
+| Slope Sign Changes | SSC | Count of sign changes in the first difference |
+| Willison Amplitude | WAMP | Count of differences $\|x_{i+1}-x_i\|$ exceeding threshold |
+
+### Frequency-Domain Features
+
+| Feature | Symbol | Definition |
+|---------|--------|------------|
+| Mean Frequency | MNF | $\frac{\sum f \cdot P(f)}{\sum P(f)}$ |
+| Median Frequency | MDF | Frequency bisecting the total spectral power |
+| Spectral Entropy | SEN | $-\sum \hat{P}(f)\log\hat{P}(f)$ |
+| Total Power | TP | $\sum P(f)$ |
+
+The Welch periodogram (`nperseg = min(256, N)`) is used for PSD estimation. Degenerate spectra (total power ≤ 10⁻¹²) are zeroed to avoid numerical instability.
+
+**Output tensor shape:** `(C, W, F)` — channels × windows × 12 features.
+
+---
+
+## 6. Model Architectures
+
+### Adapter Layer
+
+Before entering any model, the `(C, W, F)` feature tensor is reshaped to `(N, W, C×F)` via the adapter modules in `adapters/`, treating windows as time steps and concatenating all channel features into a single feature vector per step. This unified representation is compatible with all sequence and graph models.
+
+---
+
+### 6.1 Graph Neural Network (GNN)
+
+The GNN treats each window as a graph node and constructs a sequential graph over the temporal axis. Three convolutional operators are supported:
+
+| Variant | Operator | Notes |
+|---------|----------|-------|
+| `gcn` | `GCNConv` | Symmetric normalisation |
+| `sage` | `SAGEConv` | Neighbourhood aggregation with skip connections |
+| `gat` | `GATConv` | Multi-head attention weighting |
+
+**Architecture:**
+
+```
+Input (batch, seq_len, in_features)
+  → Graph construction (sequential edges)
+  → N × GNN layer (configurable operator, hidden_dim, dropout)
+  → Global pooling (mean / max / add)
+  → MLP readout (1–2 layers)
+  → Sigmoid activation → (batch, 5)
+```
+
+**Hyperparameters (best run):**
+
+| Parameter | Value |
+|-----------|-------|
+| GNN layers | 2 |
+| Hidden dimension | 64 |
+| Aggregation | mean |
+| Dropout | 0.5 |
+| Learning rate | 1×10⁻³ |
+| Weight decay | 1×10⁻⁴ |
+| Batch size | 128 |
+| Optimiser | Adam |
+| LR schedule | ReduceLROnPlateau (factor 0.5, patience 10) |
+| Early stopping patience | 25 epochs |
+| Max epochs | 200 |
+
+---
+
+### 6.2 Convolutional Neural Network (CNN)
+
+A family of 1D CNNs optimised for low-latency on-device inference, enabling deployment on embedded hardware in a rehabilitation exoskeleton.
+
+**Student architectures:**
+
+| Model | Parameters | Conv blocks | Pooling |
+|-------|-----------|-------------|---------|
+| CNN-Nano | ~100 K | 1 | Max (k=2) |
+| CNN-Micro | ~250 K | 2 | Max (k=2) |
+
+All student models follow the pattern:
+```
+Input (batch, channels, seq_len)
+  → Conv1D → BatchNorm → ReLU → MaxPool  [× N blocks]
+  → Flatten → Linear → Dropout → Linear
+  → Sigmoid → (batch, 5)
+```
+
+**Teacher architectures (1D ResNet):**
+
+Full-capacity teacher models based on 1D adaptations of ResNet-50, ResNet-101, and ResNet-152 using Bottleneck blocks for knowledge transfer.
+
+**Knowledge Distillation:**
+
+Student models are trained under a combined loss:
+
+$$\mathcal{L} = \alpha \cdot \mathcal{L}_{\text{hard}} + (1-\alpha) \cdot \mathcal{L}_{\text{soft}}$$
+
+where the hard loss is binary cross-entropy against ground-truth labels and the soft loss is MSE between student outputs and temperature-scaled teacher predictions $\sigma(z_T / T)$ with $T=4$, $\alpha=0.5$. Optional intermediate feature matching (MSE over aligned hidden representations) encourages the student to mimic the teacher's internal representations.
+
+---
+
+### 6.3 LSTM
+
+A standard multi-layer LSTM processes the `(N, W, C×F)` sequence and produces a per-sequence binary prediction over all five fingers. The recurrent architecture captures long-range temporal dependencies across windows that are challenging for purely local convolutional filters.
+
+---
+
+### 6.4 Mamba (Signal Translation)
+
+A Mamba state-space model is used for **cross-domain signal translation**: mapping sEMG recorded during a hand-to-nose grasp task to the finger-intent sEMG space. This facilitates transfer when direct finger-intent recordings are limited.
+
+- **Input:** `(batch, seq_len, input_dim)` — hand-to-nose grasp sEMG
+- **Output:** `(batch, seq_len, output_dim)` — synthesised finger-intent sEMG
+
+---
+
+## 7. Training & Optimisation
+
+### 7.1 Training Loop
+
+All models are trained with:
+
+- **Optimiser:** Adam
+- **Loss:** Binary Cross-Entropy (independent sigmoid per finger for multi-label classification)
+- **LR Scheduler:** `ReduceLROnPlateau` — reduces LR by factor 0.5 after `lr_patience` epochs without validation improvement, down to a minimum of 1×10⁻⁶
+- **Early stopping** on validation F1-macro with configurable patience
+- **Seed:** 42 for reproducibility (deterministic cuDNN)
+- **Device:** CUDA (automatic fallback to CPU)
+
+### 7.2 Bayesian Hyperparameter Optimisation
+
+Hyperparameter search is powered by **Optuna** using the Tree-structured Parzen Estimator (TPE) sampler. The search space includes learning rate, hidden dimension, number of layers, dropout rate, aggregation type (GNN), and batch size. Pass `--tune` to enable.
+
+### 7.3 Checkpointing & Experiment Tracking
+
+Training checkpoints (model weights + optimiser state + epoch metadata) are saved to `training/ckpts/`. Training and validation loss/F1 curves are serialised to JSON (`training_curves.json`) and can be plotted via the evaluation utilities.
+
+---
+
+## 8. Evaluation & Results
+
+All metrics are computed over the held-out test split of PhysioMio. The task is **five-class multi-label binary classification** (one sigmoid output per finger, threshold = 0.5).
+
+### 8.1 Reported Metrics
+
+| Metric | Description |
+|--------|-------------|
+| Accuracy | Exact-match (all 5 fingers correct) |
+| Finger Accuracy | Per-finger averaged binary accuracy |
+| Precision (macro) | Macro-average precision across 5 fingers |
+| Recall (macro) | Macro-average recall |
+| F1 (macro) | Harmonic mean of precision and recall |
+| AUROC (macro/micro) | Area under the ROC curve |
+| AUPRC (macro/micro) | Area under the Precision-Recall curve |
+
+### 8.2 Model Comparison
+
+| Model | Finger Acc. | F1 (macro) | AUROC (macro) | AUPRC (macro) |
+|-------|-------------|------------|---------------|---------------|
+| **GNN** | **0.683** | **0.706** | **0.787** | **0.776** |
+| CNN | 0.694 | 0.676 | 0.767 | 0.764 |
+
+### 8.3 GNN Per-Finger Breakdown
+
+| Finger | Precision | Recall | F1 | AUROC | AUPRC |
+|--------|-----------|--------|----|-------|-------|
+| Finger 0 (Thumb) | 0.681 | 0.902 | 0.776 | 0.754 | 0.778 |
+| Finger 1 (Index) | 0.609 | 0.813 | 0.696 | 0.815 | 0.808 |
+| Finger 2 (Middle) | 0.598 | 0.813 | 0.689 | 0.791 | 0.765 |
+| Finger 3 (Ring) | 0.596 | 0.815 | 0.688 | 0.790 | 0.768 |
+| Finger 4 (Little) | 0.579 | 0.820 | 0.678 | 0.783 | 0.761 |
+
+### 8.4 CNN Per-Finger Breakdown
+
+| Finger | Precision | Recall | F1 | AUROC | AUPRC |
+|--------|-----------|--------|----|-------|-------|
+| Finger 0 (Thumb) | 0.691 | 0.765 | 0.726 | 0.740 | 0.758 |
+| Finger 1 (Index) | 0.660 | 0.660 | 0.660 | 0.785 | 0.786 |
+| Finger 2 (Middle) | 0.656 | 0.696 | 0.675 | 0.775 | 0.766 |
+| Finger 3 (Ring) | 0.652 | 0.689 | 0.670 | 0.769 | 0.761 |
+| Finger 4 (Little) | 0.626 | 0.674 | 0.649 | 0.766 | 0.751 |
+
+Confusion matrices, ROC curves, and Precision-Recall curves are saved to `metrics/{model}/`.
+
+---
+
+## 9. Installation & Quickstart
+
+### Prerequisites
+
+- Python ≥ 3.9
+- CUDA-capable GPU recommended (automatic CPU fallback supported)
+
+### Installation
+
+```bash
+git clone https://github.com/post-stroke-rehab/psr-pipeline.git
+cd psr-pipeline
+pip install -r requirements.txt
+```
+
+**Requirements:** `numpy`, `pandas`, `pyarrow`, `scipy`, `PyWavelets`, `scikit-learn`, `matplotlib`, `torch`, `torchvision`, `torchaudio`, `torch_geometric`, `optuna`
+
+### Download Dataset
+
+```bash
+python scripts/download_physiomio.py
+```
+
+### Preprocess
+
+```python
+from data_processing.preprocess import preprocess_emg
+from data_processing.preprocess_config import PreprocessConfig
+
+features = preprocess_emg(emg, fs=1000, config=PreprocessConfig())
+# features: (C, W, F) — channels × windows × 12 features
+```
+
+### Train GNN
+
+Edit `metrics/gnn/config.json` if needed, then run:
+
+```bash
+python models/gnn.py
+```
+
+Add `--tune` for Bayesian hyperparameter search.
+
+### Train CNN
+
+```bash
+# Edit models/CNN/config.py to select model size and training mode
+python models/CNN/main.py
+```
+
+---
+
+## 10. Citation & License
+
+If you use this pipeline in your research, please cite:
+
+```bibtex
+@software{psr_pipeline,
+  author  = {post-stroke-rehab},
+  title   = {{PSR-Pipeline}: sEMG Finger Intent Prediction for Post-Stroke Rehabilitation},
+  year    = {2024},
+  url     = {https://github.com/post-stroke-rehab/psr-pipeline}
+}
+```
+
+**Dataset:** PhysioMio — `formove-ai/physiomio` on HuggingFace.
+
