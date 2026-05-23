@@ -2,7 +2,7 @@
 
 Best dual-metric LSTM run copied from:
 
-`training/runs/lstm_tune_h128_h256_fc128_d04_lr0p001_bs128_1779550396`
+`training/runs/lstm_tune_h128_h256_fc128_d05_lr0p0005_bs64_1779552307`
 
 Checkpoint:
 
@@ -10,16 +10,16 @@ Checkpoint:
 
 ## Test Metrics
 
-- f1_macro: 0.6740
-- finger_accuracy: 0.7730
-- auroc_macro: 0.8327
-- auprc_macro: 0.7474
+- f1_macro: 0.7051
+- finger_accuracy: 0.7838
+- auroc_macro: 0.8577
+- auprc_macro: 0.7537
 
 ## Hyperparameters
 
 - hidden1: 128
 - hidden2: 256
 - fc_hidden: 128
-- dropout: 0.4
-- lr: 0.001
-- batch_size: 128
+- dropout: 0.5
+- lr: 0.0005
+- batch_size: 64
