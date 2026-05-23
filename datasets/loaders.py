@@ -35,7 +35,7 @@ class LoaderConfig:
     impaired_only: bool = True
     min_segment_samples: int = 200
     skip_rest: bool = False
-    max_patients: Optional[int] = 22
+    max_patients: Optional[int] = None
 
 
 # Makes sure a folder exists
