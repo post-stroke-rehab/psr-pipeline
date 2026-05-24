@@ -35,7 +35,7 @@ class LoaderConfig:
     impaired_only: bool = True
     min_segment_samples: int = 200
     skip_rest: bool = False
-    max_patients: Optional[int] = None
+    max_patients: Optional[int] = 22
 
 
 # Makes sure a folder exists
@@ -109,15 +109,9 @@ def _patient_split_indices(patient_keys: List[str], cfg: LoaderConfig):
     patients = sorted(set(patient_keys))
     rng.shuffle(patients)
 
-    #Divy wants 70/10/20  
+    # 70 / 10 / 20 patient-level split
     train_frac = 0.7
     val_frac = 0.1
-    test_frac = 0.2
-   
-    # train_frac = 0.7
-    # val_frac = 0.15
-    # test_frac = 0.15
-
 
     nP = len(patients)
     n_train = int(round(nP * train_frac))
@@ -132,7 +126,6 @@ def _patient_split_indices(patient_keys: List[str], cfg: LoaderConfig):
     train_idx = idx[[p in trainP for p in patient_keys]]
     val_idx = idx[[p in valP for p in patient_keys]]
     test_idx = idx[[p in testP for p in patient_keys]]
-
 
     return train_idx, val_idx, test_idx, patients
 
@@ -285,7 +278,7 @@ def make_dataloaders(
     paths = _processed_paths(processed_dir, train_file, val_file, test_file)
     _ensure_dir(Path(processed_dir))
 
-    # If processed files already exist, nothing to do
+    # If processed files already exist, skip preprocessing
     if not _processed_exist(paths) and cfg.use_physiomio_if_missing:
         raw_root = Path(cfg.physiomio_raw_dir)
         _build_processed_from_physiomio(

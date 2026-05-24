@@ -60,10 +60,11 @@ class TrainConfig:
 
     ckpt_dir: str = "training/ckpts"
     run_dir: str = "training/runs"
+    results_dir: str = "results"   # final benchmark outputs: results/{model_name}/
     resume_path: Optional[str] = None
 
     save_curves: bool = True
-    save_training_curves: bool = False
+    save_training_curves: bool = True  # always save for benchmarking
 
 
 def build_model(cfg: TrainConfig, sample_x: torch.Tensor) -> nn.Module:
@@ -445,11 +446,17 @@ def train_loop(cfg: TrainConfig) -> Dict[str, float]:
     print("[Test] Loading best checkpoint...")
     _ = load_checkpoint(best_ckpt, model=model)
 
-    test_out_dir = os.path.join(run_path, "test")
-    test_metrics = eval_loop(model, test_loader, device, cfg, output_dir=test_out_dir, pos_weight=pos_weight)
+    # Final outputs go to results/{model_name}/
+    results_path = os.path.join(cfg.results_dir, cfg.model_name)
+    os.makedirs(results_path, exist_ok=True)
+
+    test_metrics = eval_loop(
+        model, test_loader, device, cfg,
+        output_dir=results_path,
+        pos_weight=pos_weight,
+    )
 
     print("[Test Results]")
-
     for k, v in test_metrics.items():
         if k != "per_finger":
             print(f"  {k}: {v:.4f}")
@@ -465,14 +472,91 @@ def train_loop(cfg: TrainConfig) -> Dict[str, float]:
             f"AUROC={stats['auroc']:.4f}"
         )
 
+    # Training curves → results/{model_name}/
     if history is not None:
-        with open(os.path.join(run_path, "training_curves.json"), "w") as f:
+        curves_path = os.path.join(results_path, "training_curves.json")
+        with open(curves_path, "w") as f:
             json.dump(history, f, indent=2)
-        save_loss_curves(history, run_path)
-    with open(os.path.join(run_path, "config.json"), "w") as f:
+        save_loss_curves(history, results_path)
+
+    # Config → results/{model_name}/config.json
+    with open(os.path.join(results_path, "config.json"), "w") as f:
         json.dump(asdict(cfg), f, indent=2)
 
+    # Copy best checkpoint → results/{model_name}/checkpoint_best.pt
+    import shutil
+    if os.path.isfile(best_ckpt):
+        shutil.copy2(best_ckpt, os.path.join(results_path, "checkpoint_best.pt"))
+
+    # Generate summary.md
+    _write_summary_md(cfg, test_metrics, results_path)
+
+    print(f"\n[Done] Results saved to {results_path}/")
     return test_metrics
+
+
+def _write_summary_md(cfg: TrainConfig, test_metrics: Dict, results_path: str) -> None:
+    """Write results/gnn/summary.md with split info, hyperparameters, and final metrics."""
+    pf = test_metrics.get("per_finger", {})
+
+    finger_rows = ""
+    for finger, stats in pf.items():
+        finger_rows += (
+            f"| {finger} | {stats['precision']:.4f} | {stats['recall']:.4f} "
+            f"| {stats['f1']:.4f} | {stats['auroc']:.4f} | {stats['auprc']:.4f} |\n"
+        )
+
+    md = f"""# GNN Benchmark Results
+
+## Split Method
+- **Strategy:** Patient-level 70 / 10 / 20 split (train / val / test)
+- **No subject overlap** between splits — patients assigned exclusively to one split
+- **Seed:** {cfg.seed}
+- **Dataset:** PhysioMio (`formove-ai/physiomio`), impaired arm recordings
+
+## Hyperparameters
+| Parameter | Value |
+|-----------|-------|
+| Model | {cfg.model_name.upper()} |
+| Optimizer | Adam |
+| Learning rate | {cfg.lr} |
+| Weight decay | {cfg.weight_decay} |
+| Batch size | {cfg.batch_size} |
+| Max epochs | {cfg.epochs} |
+| Early stopping patience | {cfg.patience} epochs |
+| LR scheduler | ReduceLROnPlateau (factor={cfg.lr_factor}, patience={cfg.lr_patience}) |
+| Min LR | {cfg.min_lr} |
+| Threshold | {cfg.threshold} |
+| Device | {cfg.device} |
+
+## Final Test Metrics
+| Metric | Value |
+|--------|-------|
+| Accuracy (exact match) | {test_metrics.get('accuracy', float('nan')):.4f} |
+| Finger Accuracy | {test_metrics.get('finger_accuracy', float('nan')):.4f} |
+| Precision (macro) | {test_metrics.get('precision_macro', float('nan')):.4f} |
+| Recall (macro) | {test_metrics.get('recall_macro', float('nan')):.4f} |
+| F1 (macro) | {test_metrics.get('f1_macro', float('nan')):.4f} |
+| AUROC (macro) | {test_metrics.get('auroc_macro', float('nan')):.4f} |
+| AUPRC (macro) | {test_metrics.get('auprc_macro', float('nan')):.4f} |
+| AUROC (micro) | {test_metrics.get('auroc_micro', float('nan')):.4f} |
+| AUPRC (micro) | {test_metrics.get('auprc_micro', float('nan')):.4f} |
+
+## Per-Finger Breakdown
+| Finger | Precision | Recall | F1 | AUROC | AUPRC |
+|--------|-----------|--------|----|-------|-------|
+{finger_rows}
+## Outputs
+- `metrics.json` — full test metrics
+- `training_curves.json` + `loss_curves.png` — training history
+- `pr_curve.png` + `roc_curve.png` — PR and ROC curves
+- `confusion_matrices.png` — per-finger confusion matrices
+- `checkpoint_best.pt` — best model checkpoint
+- `config.json` — full training config
+"""
+    with open(os.path.join(results_path, "summary.md"), "w") as f:
+        f.write(md)
+    print(f"[Summary] Written to {os.path.join(results_path, 'summary.md')}")
 
 if __name__ == "__main__":
     import argparse
@@ -480,10 +564,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", type=str, default="lstm",
                         choices=["lstm", "gnn", "cnn"])
-    parser.add_argument("--epochs", type=int, default=30)
+    parser.add_argument("--epochs", type=int, default=200)
     parser.add_argument("--lr", type=float, default=1e-3)
-    parser.add_argument("--batch_size", type=int, default=64)
-    parser.add_argument("--save_training_curves", action="store_true")
+    parser.add_argument("--batch_size", type=int, default=128)
+    parser.add_argument("--results_dir", type=str, default="results")
+    parser.add_argument("--seed", type=int, default=42)
 
     args = parser.parse_args()
 
@@ -492,6 +577,8 @@ if __name__ == "__main__":
     cfg.epochs = args.epochs
     cfg.lr = args.lr
     cfg.batch_size = args.batch_size
-    cfg.save_training_curves = args.save_training_curves
+    cfg.results_dir = args.results_dir
+    cfg.seed = args.seed
+    cfg.save_training_curves = True
 
     train_loop(cfg)
