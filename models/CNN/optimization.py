@@ -15,7 +15,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from main import Config, set_seed, get_loaders, _summary_metrics
 from students import CNN_Nano, CNN_Micro, CNN_Base, CNN_Large, CNN_XLarge
-from training import train_one_epoch, evaluate
+from training import (train_one_epoch, evaluate, setup_criterion, make_scheduler,
+                      aug_from_cfg, discover_classes)
 
 
 STUDENTS = {"nano": CNN_Nano, "micro": CNN_Micro, "base": CNN_Base,
@@ -29,7 +30,7 @@ SEARCH_SPACES: Dict[str, Dict[str, Any]] = {
         "conv1_k":  [3, 5, 7],
         "pool":     [4, 8, 16],
         "fc1":      [32, 48, 64, 96, 128],
-        "dropout":  (0.0, 0.5),
+        "dropout":  (0.0, 0.2, 0.5),
     },
     "micro": {
         "proj_ch":  [24, 32, 48, 64, 96],
@@ -39,7 +40,7 @@ SEARCH_SPACES: Dict[str, Dict[str, Any]] = {
         "conv2_k":  [3, 5, 7],
         "pool":     [4, 8, 16],
         "fc1":      [48, 64, 96, 128, 192],
-        "dropout":  (0.0, 0.5),
+        "dropout":  (0.0, 0.2, 0.5),
     },
     "base": {
         "proj_ch":  [32, 48, 64, 96, 128],
@@ -53,7 +54,7 @@ SEARCH_SPACES: Dict[str, Dict[str, Any]] = {
         "conv4_k":  [3, 5, 7],
         "pool":     [2, 4, 8],
         "fc1":      [64, 96, 128, 192, 256],
-        "dropout":  (0.0, 0.5),
+        "dropout":  (0.0, 0.2, 0.5),
     },
     "large": {
         "proj_ch":  [48, 64, 96, 128, 192],
@@ -67,7 +68,7 @@ SEARCH_SPACES: Dict[str, Dict[str, Any]] = {
         "conv4_k":  [3, 5, 7],
         "pool":     [2, 4, 8],
         "fc1":      [96, 128, 192, 256, 384],
-        "dropout":  (0.0, 0.5),
+        "dropout":  (0.0, 0.2, 0.5),
     },
     "xlarge": {
         "proj_ch":  [64, 96, 128, 192, 256],
@@ -81,15 +82,19 @@ SEARCH_SPACES: Dict[str, Dict[str, Any]] = {
         "conv4_k":  [3, 5, 7],
         "pool":     [2, 4, 8],
         "fc1":      [128, 192, 256, 384, 512],
-        "dropout":  (0.0, 0.6),
+        "dropout":  (0.0, 0.25, 0.6),
     },
 }
+
+# Pooling type over time — max >> avg for EMG (captures peak activation); search per size.
+for _space in SEARCH_SPACES.values():
+    _space["pool_type"] = ["avg", "max"]
 
 
 TRAIN_SPACE = {
     "lr":           (1e-5, 1e-2),   # log-uniform
     "weight_decay": (1e-6, 1e-3),   # log-uniform
-    "batch_size":   [16, 32, 64, 128],
+    "batch_size":   [8, 16, 32, 64, 128],
 }
 
 
@@ -99,7 +104,9 @@ class HPOConfig:
     n_trials_per_size: int = 50
     trial_epochs: int = 100              # max epochs per trial (early stop usually triggers sooner)
     early_stop_patience: int = 5         # stop trial after this many epochs without a significant improvement
-    early_stop_min_delta: float = 2.0    # percentage-points of val accuracy that counts as "significant"
+    early_stop_min_delta: float = 2.0    # percentage-points of val f1 that counts as "significant"
+    task: str = "multilabel"             # matches Config.task
+    in_norm: bool = False
     seed: int = 42
     device: str = "cuda" if torch.cuda.is_available() else "cpu"
     save_dir: str = "models/CNN/checkpoints"
@@ -159,53 +166,65 @@ def speed_penalty(ratio: float) -> float:
     return 0.05
 
 
-def _train_for_trial(model, train_loader, val_loader, lr, weight_decay, epochs,
+def _train_for_trial(model, train_loader, val_loader, tcfg, classes,
                      device, trial: optuna.Trial, patience: int, min_delta: float):
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
-    criterion = nn.BCEWithLogitsLoss()
-    best_acc, best_state = -1.0, None
-    last_milestone = -float("inf")   # last val_acc that reset the patience counter
+    criterion = setup_criterion(tcfg.task, train_loader, classes, tcfg, device)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=tcfg.lr, weight_decay=tcfg.weight_decay)
+    scheduler = make_scheduler(optimizer, tcfg)
+    aug = aug_from_cfg(tcfg)
+    best_f1, best_state = -1.0, None
+    last_milestone = -float("inf")   # last val_f1 that reset the patience counter
     stall = 0
-    for epoch in range(epochs):
-        train_one_epoch(model, train_loader, optimizer, criterion, device)
-        val = evaluate(model, val_loader, criterion, device)
-        acc = val["accuracy"]
-        if acc > best_acc:
-            best_acc = acc
+    for epoch in range(tcfg.epochs):
+        train_one_epoch(model, train_loader, optimizer, criterion, device,
+                        task=tcfg.task, classes=classes, aug=aug, grad_clip=tcfg.grad_clip)
+        val = evaluate(model, val_loader, criterion, device, task=tcfg.task, classes=classes)
+        if scheduler is not None:
+            scheduler.step()
+        f1 = val["f1"]
+        if f1 > best_f1:
+            best_f1 = f1
             best_state = copy.deepcopy(model.state_dict())
-        if acc >= last_milestone + min_delta:
-            last_milestone = acc
+        if f1 >= last_milestone + min_delta:
+            last_milestone = f1
             stall = 0
         else:
             stall += 1
         if stall >= patience:
             break
-        trial.report(acc, epoch)
+        trial.report(f1, epoch)
         if trial.should_prune():
             raise optuna.TrialPruned()
-    return best_acc, best_state, epoch + 1
+    return best_f1, best_state, epoch + 1
 
 
 def _loaders_for(batch_size: int, hcfg: HPOConfig):
-    return get_loaders(Config(batch_size=batch_size, seed=hcfg.seed, device=hcfg.device))
+    return get_loaders(Config(batch_size=batch_size, seed=hcfg.seed, device=hcfg.device, task=hcfg.task))
 
 
-def measure_baseline(size: str, hcfg: HPOConfig):
+def _trial_cfg(hcfg: HPOConfig, lr=1e-3, weight_decay=1e-4, batch_size=32, epochs=1):
+    return Config(lr=lr, weight_decay=weight_decay, batch_size=batch_size, epochs=epochs,
+                  task=hcfg.task, in_norm=hcfg.in_norm, seed=hcfg.seed, device=hcfg.device)
+
+
+def measure_baseline(size: str, hcfg: HPOConfig, classes, num_classes: int):
     """Train default architecture for `baseline_epochs`, then measure inference latency."""
     set_seed(hcfg.seed)
     device = torch.device(hcfg.device)
-    model = STUDENTS[size]().to(device)
+    tcfg = _trial_cfg(hcfg, epochs=hcfg.baseline_epochs)
+    model = STUDENTS[size](num_classes=num_classes, in_norm=hcfg.in_norm).to(device)
     train_loader, val_loader, _ = _loaders_for(32, hcfg)
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3, weight_decay=1e-4)
-    criterion = nn.BCEWithLogitsLoss()
+    criterion = setup_criterion(hcfg.task, train_loader, classes, tcfg, device)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3, weight_decay=1e-4)
     for _ in range(hcfg.baseline_epochs):
-        train_one_epoch(model, train_loader, optimizer, criterion, device)
-    val = evaluate(model, val_loader, criterion, device)
+        train_one_epoch(model, train_loader, optimizer, criterion, device,
+                        task=hcfg.task, classes=classes)
+    val = evaluate(model, val_loader, criterion, device, task=hcfg.task, classes=classes)
     latency_ms = measure_latency(model, val_loader, device, hcfg.latency_warmup, hcfg.latency_iters)
-    return {"latency_ms": latency_ms, "val_accuracy": val["accuracy"]}
+    return {"latency_ms": latency_ms, "val_f1": val["f1"]}
 
 
-def run_study(size: str, hcfg: HPOConfig, baseline_latency_ms: float):
+def run_study(size: str, hcfg: HPOConfig, baseline_latency_ms: float, classes, num_classes: int):
     device = torch.device(hcfg.device)
     cls = STUDENTS[size]
 
@@ -218,12 +237,11 @@ def run_study(size: str, hcfg: HPOConfig, baseline_latency_ms: float):
 
         train_loader, val_loader, _ = _loaders_for(train_kwargs["batch_size"], hcfg)
 
-        model = cls(**arch_kwargs).to(device)
-        best_acc, best_state, epochs_run = _train_for_trial(
-            model, train_loader, val_loader,
-            lr=train_kwargs["lr"],
-            weight_decay=train_kwargs["weight_decay"],
-            epochs=hcfg.trial_epochs,
+        tcfg = _trial_cfg(hcfg, lr=train_kwargs["lr"], weight_decay=train_kwargs["weight_decay"],
+                          batch_size=train_kwargs["batch_size"], epochs=hcfg.trial_epochs)
+        model = cls(**arch_kwargs, num_classes=num_classes, in_norm=hcfg.in_norm).to(device)
+        best_f1, best_state, epochs_run = _train_for_trial(
+            model, train_loader, val_loader, tcfg, classes,
             device=device, trial=trial,
             patience=hcfg.early_stop_patience,
             min_delta=hcfg.early_stop_min_delta,
@@ -232,16 +250,16 @@ def run_study(size: str, hcfg: HPOConfig, baseline_latency_ms: float):
 
         latency_ms = measure_latency(model, val_loader, device, hcfg.latency_warmup, hcfg.latency_iters)
         ratio = latency_ms / baseline_latency_ms
-        score = (best_acc / 100.0) * speed_penalty(ratio)
+        score = (best_f1 / 100.0) * speed_penalty(ratio)
 
-        trial.set_user_attr("val_accuracy", best_acc)
+        trial.set_user_attr("val_f1", best_f1)
         trial.set_user_attr("latency_ms", latency_ms)
         trial.set_user_attr("ratio", ratio)
         trial.set_user_attr("epochs_run", epochs_run)
 
         if score > best["score"]:
             best.update(score=score, state=best_state, arch_kwargs=arch_kwargs,
-                        train_kwargs=train_kwargs, val_accuracy=best_acc,
+                        train_kwargs=train_kwargs, val_f1=best_f1,
                         latency_ms=latency_ms, ratio=ratio, epochs_run=epochs_run)
         return score
 
@@ -259,7 +277,7 @@ def _format_kwargs(d: Dict[str, Any]) -> str:
 
 
 def _write_txt(path: Path, *, size: str, study: optuna.Study, best: Dict[str, Any],
-               baseline_latency_ms: float, baseline_val_acc: float, trial_epochs: int):
+               baseline_latency_ms: float, baseline_val_f1: float, trial_epochs: int):
     n_pruned = sum(1 for t in study.trials if t.state == optuna.trial.TrialState.PRUNED)
     n_complete = sum(1 for t in study.trials if t.state == optuna.trial.TrialState.COMPLETE)
     arch_repr = ", ".join(f"{k}={v!r}" for k, v in best["arch_kwargs"].items())
@@ -268,9 +286,9 @@ def _write_txt(path: Path, *, size: str, study: optuna.Study, best: Dict[str, An
     content = f"""=== optuna_{size} ===
 trials run:         {len(study.trials)}  (complete={n_complete}, pruned={n_pruned})
 best score:         {best['score']:.4f}
-best val accuracy:  {best['val_accuracy']:.2f}%
+best val f1:        {best['val_f1']:.2f}
 inference latency:  {best['latency_ms']:.3f} ms  (baseline {baseline_latency_ms:.3f} ms, ratio {best['ratio']:.3f}x)
-baseline val acc:   {baseline_val_acc:.2f}%
+baseline val f1:    {baseline_val_f1:.2f}
 epochs trained:     {best['epochs_run']} / {trial_epochs} ({epoch_note})
 
 Architecture kwargs:
@@ -293,36 +311,40 @@ def run(hcfg: HPOConfig = None):
     save_dir = Path(hcfg.save_dir)
     save_dir.mkdir(parents=True, exist_ok=True)
 
+    train_loader0, _, _ = get_loaders(Config(task=hcfg.task))
+    classes = discover_classes(train_loader0) if hcfg.task == "multiclass" else None
+    num_classes = classes.size(0) if classes is not None else 5
+
     summary = []
     for size in hcfg.sizes:
         print(f"\n========== {size.upper()} ==========")
         print(f"[baseline] training default architecture for {hcfg.baseline_epochs} epoch(s)...")
-        base = measure_baseline(size, hcfg)
-        print(f"[baseline] latency={base['latency_ms']:.3f}ms  val_acc={base['val_accuracy']:.2f}%")
+        base = measure_baseline(size, hcfg, classes, num_classes)
+        print(f"[baseline] latency={base['latency_ms']:.3f}ms  val_f1={base['val_f1']:.2f}")
 
         print(f"[study] running {hcfg.n_trials_per_size} trials...")
-        study, best = run_study(size, hcfg, base["latency_ms"])
+        study, best = run_study(size, hcfg, base["latency_ms"], classes, num_classes)
 
         pth_path = save_dir / f"optuna_{size}.pth"
         torch.save({"state_dict": best["state"], "arch_kwargs": best["arch_kwargs"]}, pth_path)
 
         txt_path = save_dir / f"optuna_{size}.txt"
         _write_txt(txt_path, size=size, study=study, best=best,
-                   baseline_latency_ms=base["latency_ms"], baseline_val_acc=base["val_accuracy"],
+                   baseline_latency_ms=base["latency_ms"], baseline_val_f1=base["val_f1"],
                    trial_epochs=hcfg.trial_epochs)
 
-        print(f"[done] score={best['score']:.4f}  acc={best['val_accuracy']:.2f}%  "
+        print(f"[done] score={best['score']:.4f}  f1={best['val_f1']:.2f}  "
               f"latency={best['latency_ms']:.3f}ms  ratio={best['ratio']:.3f}x  -> {pth_path.name}")
         summary.append({
-            "size": size, "score": best["score"], "val_acc": best["val_accuracy"],
+            "size": size, "score": best["score"], "val_f1": best["val_f1"],
             "latency_ms": best["latency_ms"], "baseline_latency_ms": base["latency_ms"],
         })
 
     print("\n========== SUMMARY ==========")
-    print(f"{'size':<8} {'score':>8} {'val_acc':>9} {'latency_ms':>12} {'baseline_ms':>12} {'ratio':>7}")
+    print(f"{'size':<8} {'score':>8} {'val_f1':>9} {'latency_ms':>12} {'baseline_ms':>12} {'ratio':>7}")
     for s in summary:
         ratio = s["latency_ms"] / s["baseline_latency_ms"]
-        print(f"{s['size']:<8} {s['score']:>8.4f} {s['val_acc']:>8.2f}% "
+        print(f"{s['size']:<8} {s['score']:>8.4f} {s['val_f1']:>8.2f} "
               f"{s['latency_ms']:>12.3f} {s['baseline_latency_ms']:>12.3f} {ratio:>7.3f}x")
 
 

@@ -11,7 +11,7 @@ from evaluation.metrics import compute_multilabel_metrics
 
 from students import CNN_Nano, CNN_Micro, CNN_Base, CNN_Large, CNN_XLarge
 from teachers import ResNet50_1D, ResNet101_1D, ResNet152_1D
-from training import train_model
+from training import train_model, discover_classes, to_probs5
 from distillation import train_student_kd
 
 
@@ -34,6 +34,18 @@ class Config:
     kd_alpha: float = 0.5
     teacher_ckpt: Optional[str] = None   # if None, teacher is pretrained on the fly
     teacher_epochs: int = 30
+
+    task: str = "multilabel"             # "multilabel" (5 sigmoids) | "multiclass" (K-way softmax)
+    in_norm: bool = False                # per-sample InstanceNorm input; OFF: it erases the EMG amplitude cue (rest vs active) and hurts here
+    use_pos_weight: bool = True          # class/pos weighting for imbalance
+    label_smoothing: float = 0.0
+    scheduler: str = "cosine"            # "cosine" | "none"
+    warmup_epochs: int = 0
+    grad_clip: float = 0.0               # 0 disables
+    ema_decay: float = 0.0               # e.g. 0.999 to enable weight EMA
+    aug_noise_std: float = 0.0           # gaussian jitter (relative to per-channel std)
+    aug_channel_dropout: float = 0.0     # fraction of input rows zeroed per sample
+    aug_scale_jitter: float = 0.0        # +/- amplitude scaling range
 
     device: str = "cuda" if torch.cuda.is_available() else "cpu"
     seed: int = 42
@@ -75,13 +87,29 @@ def _save_path(cfg: Config, name: str) -> str:
     return f"{cfg.save_dir}/{name}.pth"
 
 
+def _task_setup(cfg: Config, train_loader):
+    if cfg.task == "multiclass":
+        classes = discover_classes(train_loader)
+        return classes, classes.size(0)
+    return None, 5
+
+
+def _build_student(cfg: Config, num_classes: int):
+    return STUDENTS[cfg.student_name](in_norm=cfg.in_norm, num_classes=num_classes)
+
+
+def _build_teacher(cfg: Config, num_classes: int):
+    return TEACHERS[cfg.teacher_name](in_norm=cfg.in_norm, num_classes=num_classes)
+
+
 @torch.no_grad()
-def _summary_metrics(model, loader, device):
+def _summary_metrics(model, loader, device, task="multilabel", classes=None):
     model.eval()
+    cls = classes.to(device) if classes is not None else None
     preds, targets = [], []
     for x, y in loader:
         x = x.to(device)
-        preds.append(torch.sigmoid(model(x)).cpu())
+        preds.append(to_probs5(task, model(x), cls).cpu())
         targets.append(y)
     return compute_multilabel_metrics(torch.cat(preds), torch.cat(targets))
 
@@ -90,11 +118,13 @@ def train_student(cfg: Config):
     set_seed(cfg.seed)
     device = torch.device(cfg.device)
     train_loader, val_loader, test_loader = get_loaders(cfg)
-    model = STUDENTS[cfg.student_name]().to(device)
+    classes, num_classes = _task_setup(cfg, train_loader)
+    model = _build_student(cfg, num_classes).to(device)
     print(f"student={cfg.student_name}  params={sum(p.numel() for p in model.parameters()):,}")
     save_path = _save_path(cfg, f"student_{cfg.student_name}")
-    model, _ = train_model(model, train_loader, val_loader, cfg, device, save_path=save_path)
-    metrics = _summary_metrics(model, test_loader, device)
+    model, _ = train_model(model, train_loader, val_loader, cfg, device, save_path=save_path,
+                           task=cfg.task, classes=classes)
+    metrics = _summary_metrics(model, test_loader, device, task=cfg.task, classes=classes)
     print(f"test  acc={metrics['accuracy']:.3f}  f1_macro={metrics['f1_macro']:.3f}  auprc={metrics['auprc_macro']:.3f}")
     return model
 
@@ -103,13 +133,15 @@ def train_teacher(cfg: Config):
     set_seed(cfg.seed)
     device = torch.device(cfg.device)
     train_loader, val_loader, test_loader = get_loaders(cfg)
+    classes, num_classes = _task_setup(cfg, train_loader)
     teacher_epochs = cfg.teacher_epochs if cfg.mode == "student_kd" else cfg.epochs
-    model = TEACHERS[cfg.teacher_name]().to(device)
+    model = _build_teacher(cfg, num_classes).to(device)
     print(f"teacher={cfg.teacher_name}  params={sum(p.numel() for p in model.parameters()):,}")
     save_path = _save_path(cfg, f"teacher_{cfg.teacher_name}")
     teacher_cfg = Config(**{**cfg.__dict__, "epochs": teacher_epochs})
-    model, _ = train_model(model, train_loader, val_loader, teacher_cfg, device, save_path=save_path)
-    metrics = _summary_metrics(model, test_loader, device)
+    model, _ = train_model(model, train_loader, val_loader, teacher_cfg, device, save_path=save_path,
+                           task=cfg.task, classes=classes)
+    metrics = _summary_metrics(model, test_loader, device, task=cfg.task, classes=classes)
     print(f"test  acc={metrics['accuracy']:.3f}  f1_macro={metrics['f1_macro']:.3f}  auprc={metrics['auprc_macro']:.3f}")
     return model
 
@@ -118,22 +150,28 @@ def train_student_with_kd(cfg: Config):
     set_seed(cfg.seed)
     device = torch.device(cfg.device)
     train_loader, val_loader, test_loader = get_loaders(cfg)
+    classes, num_classes = _task_setup(cfg, train_loader)
 
-    teacher = TEACHERS[cfg.teacher_name]().to(device)
     if cfg.teacher_ckpt and Path(cfg.teacher_ckpt).exists():
-        teacher.load_state_dict(torch.load(cfg.teacher_ckpt, map_location=device))
+        state = torch.load(cfg.teacher_ckpt, map_location=device)
+        ckpt_in_norm = any(k.startswith("in_norm.") for k in state)   # tolerate pre-InstanceNorm teachers
+        teacher = _build_teacher(Config(**{**cfg.__dict__, "in_norm": ckpt_in_norm}), num_classes).to(device)
+        teacher.load_state_dict(state)
         print(f"loaded teacher checkpoint: {cfg.teacher_ckpt}")
     else:
+        teacher = _build_teacher(cfg, num_classes).to(device)
         print(f"pretraining teacher={cfg.teacher_name} for {cfg.teacher_epochs} epochs")
         teacher_cfg = Config(**{**cfg.__dict__, "epochs": cfg.teacher_epochs})
         teacher, _ = train_model(teacher, train_loader, val_loader, teacher_cfg, device,
-                                 save_path=_save_path(cfg, f"teacher_{cfg.teacher_name}"))
+                                 save_path=_save_path(cfg, f"teacher_{cfg.teacher_name}"),
+                                 task=cfg.task, classes=classes)
 
-    student = STUDENTS[cfg.student_name]().to(device)
+    student = _build_student(cfg, num_classes).to(device)
     print(f"student={cfg.student_name}  params={sum(p.numel() for p in student.parameters()):,}")
     save_path = _save_path(cfg, f"student_kd_{cfg.student_name}_from_{cfg.teacher_name}")
-    student, _ = train_student_kd(student, teacher, train_loader, val_loader, cfg, device, save_path=save_path)
-    metrics = _summary_metrics(student, test_loader, device)
+    student, _ = train_student_kd(student, teacher, train_loader, val_loader, cfg, device,
+                                  save_path=save_path, task=cfg.task, classes=classes)
+    metrics = _summary_metrics(student, test_loader, device, task=cfg.task, classes=classes)
     print(f"test  acc={metrics['accuracy']:.3f}  f1_macro={metrics['f1_macro']:.3f}  auprc={metrics['auprc_macro']:.3f}")
     return student
 
