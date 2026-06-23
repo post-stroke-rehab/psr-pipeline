@@ -61,6 +61,7 @@ class TeacherEnsemble(nn.Module):
         device: torch.device,
         out_dim: int = 5,
         batch_size: int = 128,
+        per_class_weights: Optional[torch.Tensor] = None,
     ):
         super().__init__()
 
@@ -102,8 +103,20 @@ class TeacherEnsemble(nn.Module):
 
         self.teachers = nn.ModuleDict(teachers)
 
-        weights = torch.tensor([float(spec.weight) for spec in specs], dtype=torch.float32)
-        weights = weights / weights.sum()
+        if per_class_weights is not None:
+            weights = torch.as_tensor(per_class_weights, dtype=torch.float32)
+            expected_shape = (len(specs), out_dim)
+            if tuple(weights.shape) != expected_shape:
+                raise ValueError(
+                    f"per_class_weights must have shape {expected_shape}, got {tuple(weights.shape)}"
+                )
+            weights = weights / weights.sum(dim=0, keepdim=True).clamp_min(1e-12)
+        else:
+            weights = torch.tensor([float(spec.weight) for spec in specs], dtype=torch.float32)
+            weights = weights.view(-1, 1)
+            weights = weights / weights.sum().clamp_min(1e-12)
+            weights = weights.expand(-1, out_dim).contiguous()
+
         self.register_buffer("weights", weights)
 
     @torch.no_grad()
@@ -116,6 +129,6 @@ class TeacherEnsemble(nn.Module):
             logits.append(teacher(x))
 
         stacked = torch.stack(logits, dim=0)  # (num_teachers, batch, out_dim)
-        weights = self.weights.view(-1, 1, 1).to(stacked.device)
+        weights = self.weights.view(len(self.specs), 1, -1).to(stacked.device)
 
         return (stacked * weights).sum(dim=0)

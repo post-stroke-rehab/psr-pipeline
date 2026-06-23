@@ -5,7 +5,7 @@ import json
 import os
 import time
 from dataclasses import asdict, dataclass
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 import torch
 import torch.nn as nn
@@ -64,6 +64,9 @@ class DistillConfig:
     teachers: str = "cnn,lstm"
     alpha: float = 0.5
     temperature: float = 2.0
+    fusion: str = "equal"
+    fusion_metric: str = "auprc"
+    teacher_weights: str = ""
 
     out_dim: int = 5
     threshold: float = 0.5
@@ -127,6 +130,66 @@ def count_params(model: nn.Module) -> int:
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 
+@torch.no_grad()
+def compute_per_finger_teacher_weights(
+    teachers: TeacherEnsemble,
+    val_loader,
+    device: torch.device,
+    out_dim: int,
+    metric: str = "auprc",
+) -> Tuple[torch.Tensor, Dict[str, List[float]]]:
+    """Compute per-finger teacher fusion weights from validation performance."""
+    from sklearn.metrics import average_precision_score, f1_score
+
+    teacher_names = [spec.name.lower().strip() for spec in teachers.specs]
+    y_chunks = []
+    prob_chunks = {name: [] for name in teacher_names}
+
+    for x_raw, y in val_loader:
+        x = feature_tensor_to_sequences(x_raw.to(device))
+        y_chunks.append(y.cpu())
+
+        for name in teacher_names:
+            logits = teachers.teachers[name](x)
+            prob_chunks[name].append(torch.sigmoid(logits).cpu())
+
+    y_true = torch.cat(y_chunks, dim=0).numpy()
+    raw_scores = torch.zeros((len(teacher_names), out_dim), dtype=torch.float32)
+    score_details: Dict[str, List[float]] = {}
+
+    for teacher_idx, name in enumerate(teacher_names):
+        probs = torch.cat(prob_chunks[name], dim=0).numpy()
+        per_finger_scores = []
+
+        for finger_idx in range(out_dim):
+            if metric == "auprc":
+                score = average_precision_score(y_true[:, finger_idx], probs[:, finger_idx])
+            elif metric == "f1":
+                preds = probs[:, finger_idx] >= 0.5
+                score = f1_score(y_true[:, finger_idx], preds, zero_division=0)
+            else:
+                raise ValueError(f"Unknown fusion metric '{metric}'. Use 'auprc' or 'f1'.")
+
+            score = max(float(score), 0.0)
+            raw_scores[teacher_idx, finger_idx] = score + 1e-6
+            per_finger_scores.append(score)
+
+        score_details[name] = per_finger_scores
+
+    weights = raw_scores / raw_scores.sum(dim=0, keepdim=True).clamp_min(1e-12)
+
+    print(f"[Fusion] per-finger validation weighting using {metric}")
+    for name, scores in score_details.items():
+        rounded_scores = [round(s, 4) for s in scores]
+        print(f"[Fusion] {name} val {metric}: {rounded_scores}")
+
+    for teacher_idx, name in enumerate(teacher_names):
+        rounded_weights = [round(float(w), 4) for w in weights[teacher_idx]]
+        print(f"[Fusion] {name} weights: {rounded_weights}")
+
+    return weights, score_details
+
+
 def train_distill(cfg: DistillConfig) -> Dict:
     set_seed(cfg.seed)
     device = torch.device(cfg.device)
@@ -135,6 +198,9 @@ def train_distill(cfg: DistillConfig) -> Dict:
     print(f"[Distill] student={cfg.student}")
     print(f"[Distill] teachers={cfg.teachers}")
     print(f"[Distill] alpha={cfg.alpha}, temperature={cfg.temperature}")
+    print(f"[Distill] fusion={cfg.fusion}, fusion_metric={cfg.fusion_metric}")
+    if cfg.teacher_weights:
+        print(f"[Distill] teacher_weights={cfg.teacher_weights}")
 
     loader_cfg = LoaderConfig(
         batch_size=cfg.batch_size,
@@ -158,9 +224,25 @@ def train_distill(cfg: DistillConfig) -> Dict:
     print(f"[Student] trainable params: {count_params(student):,}")
 
     teacher_names = [t.strip() for t in cfg.teachers.split(",") if t.strip()]
+
+    teacher_weight_values = None
+    if cfg.teacher_weights:
+        teacher_weight_values = [
+            float(w.strip()) for w in cfg.teacher_weights.split(",") if w.strip()
+        ]
+        if len(teacher_weight_values) != len(teacher_names):
+            raise ValueError(
+                "--teacher_weights must provide one weight per teacher. "
+                f"Got {len(teacher_weight_values)} weights for {len(teacher_names)} teachers."
+            )
+
     teacher_specs = [
-        TeacherSpec(name=t, checkpoint_path=f"results/{t}/checkpoint_best.pt")
-        for t in teacher_names
+        TeacherSpec(
+            name=t,
+            checkpoint_path=f"results/{t}/checkpoint_best.pt",
+            weight=teacher_weight_values[i] if teacher_weight_values is not None else 1.0,
+        )
+        for i, t in enumerate(teacher_names)
     ]
 
     teachers = TeacherEnsemble(
@@ -170,6 +252,21 @@ def train_distill(cfg: DistillConfig) -> Dict:
         out_dim=cfg.out_dim,
         batch_size=cfg.batch_size,
     ).to(device)
+
+    teacher_fusion_weights = teachers.weights.detach().cpu()
+    teacher_fusion_scores = None
+
+    if cfg.fusion == "per_finger_val":
+        teacher_fusion_weights, teacher_fusion_scores = compute_per_finger_teacher_weights(
+            teachers=teachers,
+            val_loader=val_loader,
+            device=device,
+            out_dim=cfg.out_dim,
+            metric=cfg.fusion_metric,
+        )
+        teachers.weights.copy_(teacher_fusion_weights.to(device))
+    elif cfg.fusion != "equal":
+        raise ValueError("cfg.fusion must be 'equal' or 'per_finger_val'.")
 
     pos_weight = compute_pos_weight_from_loader(train_loader, cfg.out_dim, device)
 
@@ -183,7 +280,8 @@ def train_distill(cfg: DistillConfig) -> Dict:
     )
 
     teacher_tag = "_".join(teacher_names)
-    run_name = f"distill_{cfg.student}_from_{teacher_tag}_a{cfg.alpha}_t{cfg.temperature}"
+    fusion_tag = "" if cfg.fusion == "equal" else f"_{cfg.fusion}_{cfg.fusion_metric}"
+    run_name = f"distill_{cfg.student}_from_{teacher_tag}{fusion_tag}_a{cfg.alpha}_t{cfg.temperature}_seed{cfg.seed}"
     results_path = os.path.join(cfg.results_dir, run_name)
     os.makedirs(results_path, exist_ok=True)
 
@@ -336,6 +434,11 @@ def train_distill(cfg: DistillConfig) -> Dict:
         "student": cfg.student,
         "student_params": count_params(student),
         "teachers": teacher_names,
+        "fusion": cfg.fusion,
+        "fusion_metric": cfg.fusion_metric,
+        "teacher_fusion_weights": teacher_fusion_weights.tolist(),
+        "teacher_fusion_scores": teacher_fusion_scores,
+        "manual_teacher_weights": cfg.teacher_weights,
         "alpha": cfg.alpha,
         "temperature": cfg.temperature,
         "best_val_f1": best_val_f1,
@@ -360,6 +463,9 @@ def parse_args() -> DistillConfig:
     p.add_argument("--teachers", default="cnn,lstm")
     p.add_argument("--alpha", type=float, default=0.5)
     p.add_argument("--temperature", type=float, default=2.0)
+    p.add_argument("--fusion", choices=["equal", "per_finger_val"], default="equal")
+    p.add_argument("--fusion_metric", choices=["auprc", "f1"], default="auprc")
+    p.add_argument("--teacher_weights", default="")
     p.add_argument("--epochs", type=int, default=10)
     p.add_argument("--patience", type=int, default=5)
     p.add_argument("--lr", type=float, default=1e-3)
@@ -373,6 +479,9 @@ def parse_args() -> DistillConfig:
         teachers=args.teachers,
         alpha=args.alpha,
         temperature=args.temperature,
+        fusion=args.fusion,
+        fusion_metric=args.fusion_metric,
+        teacher_weights=args.teacher_weights,
         epochs=args.epochs,
         patience=args.patience,
         lr=args.lr,
