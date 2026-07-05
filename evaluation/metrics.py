@@ -2,7 +2,7 @@
 Multilabel (e.g. 5-finger) metrics: precision, recall, F1, AUPRC, AUROC, per-finger and curves.
 """
 
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Sequence, Union
 
 import numpy as np
 import torch
@@ -55,7 +55,7 @@ def compute_multilabel_metrics(
     y_pred: torch.Tensor,
     y_true: torch.Tensor,
     *,
-    threshold: float = 0.5,
+    threshold: Union[float, Sequence[float]] = 0.5,
     num_classes: Optional[int] = None,
 ) -> Dict[str, Any]:
     """
@@ -79,7 +79,18 @@ def compute_multilabel_metrics(
     if num_classes is None:
         num_classes = y_true.shape[1]
 
-    pred_binary = (y_pred >= threshold).astype(np.float64)
+    if isinstance(threshold, (int, float)):
+        thresholds = [float(threshold)] * num_classes
+    else:
+        thresholds = [float(t) for t in threshold]
+        if len(thresholds) != num_classes:
+            raise ValueError(
+                f"Expected {num_classes} thresholds, got {len(thresholds)}."
+            )
+
+    pred_binary = np.zeros_like(y_true, dtype=np.float64)
+    for j, t in enumerate(thresholds):
+        pred_binary[:, j] = (y_pred[:, j] >= t).astype(np.float64)
 
     # Overall accuracy (all labels correct per sample)
     correct = (pred_binary == y_true).all(axis=1).astype(np.float64)
@@ -127,6 +138,7 @@ def compute_multilabel_metrics(
         rec = float(tp / (tp + fn + 1e-10))
         f1_j = float(2 * prec * rec / (prec + rec + 1e-10))
         per_finger[f"finger_{j}"] = {
+            "accuracy": float(finger_acc_per[j]),
             "precision": prec,
             "recall": rec,
             "f1": f1_j,

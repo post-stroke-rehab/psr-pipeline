@@ -1,0 +1,10 @@
+=== CNN Optuna (finetune) ===
+trials: 30
+best val finger_accuracy: 0.8319
+best params:
+  dropout: 0.1
+  lr: 0.0016015312171361203
+  batch_size: 128
+  weight_decay: 1.6677615430197902e-06
+  patience: 20
+  finger0_pos_weight_boost: 1.1

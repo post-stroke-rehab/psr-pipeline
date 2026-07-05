@@ -2,14 +2,17 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from dataclasses import dataclass
+from typing import Dict, Iterable, Union
+
+_BACKBONE_PREFIXES = ("lstm1.", "lstm2.")
 
 # Configuration for the LSTM model to easily adjust hyperparameters
 @dataclass
 class LSTMConfig:
     input_size: int = 3
-    hidden1: int = 64
-    hidden2: int = 128
-    fc_hidden: int = 64
+    hidden1: int = 128
+    hidden2: int = 256
+    fc_hidden: int = 128
     dropout: float = 0.5
     out_dim: int = 5
 
@@ -51,3 +54,41 @@ class LSTM_model(nn.Module):
         # x = torch.sigmoid(x)  # Sigmoid activation for each finger
         # Removed sigmoid activation for unified pipeline
         return x  # (batch, out_dim)
+
+
+def backbone_parameters(model: LSTM_model) -> Iterable[nn.Parameter]:
+    for name, param in model.named_parameters():
+        if name.startswith(_BACKBONE_PREFIXES):
+            yield param
+
+
+def head_parameters(model: LSTM_model) -> Iterable[nn.Parameter]:
+    for name, param in model.named_parameters():
+        if not name.startswith(_BACKBONE_PREFIXES):
+            yield param
+
+
+def _extract_backbone_state(state: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
+    return {k: v for k, v in state.items() if k.startswith(_BACKBONE_PREFIXES)}
+
+
+def load_pretrained_backbone(
+    model: LSTM_model,
+    ckpt_path_or_state: Union[str, Dict[str, torch.Tensor]],
+) -> None:
+    if isinstance(ckpt_path_or_state, str):
+        payload = torch.load(ckpt_path_or_state, map_location="cpu", weights_only=True)
+        state = payload["model_state"]
+    else:
+        state = ckpt_path_or_state
+
+    backbone_state = _extract_backbone_state(state)
+    if not backbone_state:
+        raise ValueError("No LSTM backbone weights found in checkpoint.")
+
+    model.load_state_dict(backbone_state, strict=False)
+
+
+def set_backbone_trainable(model: LSTM_model, trainable: bool) -> None:
+    for param in backbone_parameters(model):
+        param.requires_grad = trainable
