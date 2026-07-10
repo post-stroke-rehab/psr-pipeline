@@ -32,10 +32,11 @@ class LoaderConfig:
     use_physiomio_if_missing: bool = True
     physiomio_raw_dir: str = "datasets/raw/physiomio"
     physiomio_fs: float = 2000.0
+    arm_split: str = "impaired"
     impaired_only: bool = True
     min_segment_samples: int = 200
     skip_rest: bool = False
-    max_patients: Optional[int] = 22
+    max_patients: Optional[int] = None
 
 
 # Makes sure a folder exists
@@ -60,15 +61,39 @@ def _processed_exist(paths: Dict[str, Path]) -> bool:
 
 # Finds all PhysioMio parquet files
 # We usually train only on impaired_arm recordings
-def _find_physiomio_parquets(raw_root: Path, impaired_only: bool) -> List[Path]:
+def _resolve_arm_split(cfg: LoaderConfig) -> str:
+    arm_split = str(cfg.arm_split).lower()
+    if arm_split == "auto":
+        return "impaired" if cfg.impaired_only else "both"
+    if arm_split not in {"healthy", "impaired", "both"}:
+        raise ValueError(f"arm_split must be one of healthy, impaired, both, or auto. Got: {cfg.arm_split}")
+    return arm_split
+
+
+def _find_physiomio_parquets(raw_root: Path, arm_split: str) -> List[Path]:
     if not raw_root.exists():
         return []
 
-    if impaired_only:
+    if arm_split == "impaired":
         return sorted(raw_root.rglob("impaired_arm/*.parquet"))
 
-    return sorted(raw_root.rglob("healthy_arm/*.parquet")) + \
-           sorted(raw_root.rglob("impaired_arm/*.parquet"))
+    if arm_split == "healthy":
+        return sorted(raw_root.rglob("healthy_arm/*.parquet"))
+
+    if arm_split == "both":
+        return sorted(raw_root.rglob("healthy_arm/*.parquet")) + \
+               sorted(raw_root.rglob("impaired_arm/*.parquet"))
+
+    raise ValueError(f"Unsupported arm_split: {arm_split}")
+
+
+def _arm_from_path(p: Path) -> str:
+    parts = {part.lower() for part in p.parts}
+    if "healthy_arm" in parts:
+        return "healthy"
+    if "impaired_arm" in parts:
+        return "impaired"
+    return "unknown"
 
 
 # Extracts patient ID from the folder name (e.g., patient12)
@@ -142,7 +167,8 @@ def _build_processed_from_physiomio(
     if preprocess_cfg is None:
         preprocess_cfg = PreprocessConfig()
 
-    parquets = _find_physiomio_parquets(raw_root, cfg.impaired_only)
+    arm_split = _resolve_arm_split(cfg)
+    parquets = _find_physiomio_parquets(raw_root, arm_split)
 
     rng = np.random.default_rng(cfg.seed)
 
@@ -166,11 +192,12 @@ def _build_processed_from_physiomio(
     if len(parquets) == 0:
         raise FileNotFoundError("No PhysioMio parquet files found.")
 
-    print(f"Starting PhysioMio preprocessing ({len(parquets)} parquet files)...")
+    print(f"Starting PhysioMio preprocessing ({arm_split}, {len(parquets)} parquet files)...")
 
     X_list: List[torch.Tensor] = []
     y_list: List[torch.Tensor] = []
     patient_keys: List[str] = []
+    arm_keys: List[str] = []
     unknown_labels: Dict[str, int] = {}
 
     for i_pq, pq in enumerate(parquets, start=1):
@@ -209,6 +236,7 @@ def _build_processed_from_physiomio(
             X_list.append(torch.from_numpy(np.asarray(X, dtype=np.float32)))
             y_list.append(torch.from_numpy(y5))
             patient_keys.append(_patient_id_from_path(pq))
+            arm_keys.append(_arm_from_path(pq))
 
             if len(X_list) % 500 == 0:
                 print(f"Built {len(X_list)} samples so far...")
@@ -252,7 +280,9 @@ def _build_processed_from_physiomio(
                 "patients": patients,
                 "seed": cfg.seed,
                 "fs": float(cfg.physiomio_fs),
+                "arm_split": arm_split,
                 "impaired_only": bool(cfg.impaired_only),
+                "arms": sorted(set(arm_keys)),
             },
         }
         torch.save(payload, paths[name])

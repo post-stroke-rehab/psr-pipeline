@@ -1,0 +1,11 @@
+=== CNN Optuna (pretrain) ===
+trials: 30
+best val finger_accuracy: 0.8175
+best params:
+  cnn_variant: base
+  dropout: 0.5
+  lr: 0.0015620386984526499
+  batch_size: 64
+  weight_decay: 3.6283583803549183e-06
+  patience: 35
+  finger0_pos_weight_boost: 1.5

@@ -1,0 +1,208 @@
+{
+  "pretrain": {
+    "stage": "pretrain",
+    "best_value": 0.8550000000000001,
+    "best_params": {
+      "hidden1": 128,
+      "hidden2": 256,
+      "fc_hidden": 128,
+      "dropout": 0.55,
+      "lr": 0.00013560864433880123,
+      "batch_size": 32,
+      "weight_decay": 0.00010933191318946789,
+      "patience": 30
+    },
+    "best_config": {
+      "model_name": "lstm",
+      "training_stage": "pretrain",
+      "out_dim": 5,
+      "threshold": 0.5,
+      "lr": 0.00013560864433880123,
+      "weight_decay": 0.00010933191318946789,
+      "epochs": 200,
+      "patience": 30,
+      "lr_patience": 10,
+      "lr_factor": 0.5,
+      "min_lr": 1e-06,
+      "device": "cuda",
+      "seed": 42,
+      "use_feature_adapter": true,
+      "processed_dir": "datasets/processed/physiomio/healthy",
+      "train_file": "train.pt",
+      "val_file": "val.pt",
+      "test_file": "test.pt",
+      "pretrained_ckpt_path": null,
+      "pretrained_init": "backbone",
+      "freeze_backbone_epochs": 0,
+      "backbone_lr": null,
+      "head_lr": null,
+      "lstm_hidden1": 128,
+      "lstm_hidden2": 256,
+      "lstm_fc_hidden": 128,
+      "lstm_dropout": 0.55,
+      "early_stop_metric": "finger_accuracy",
+      "tune_threshold": true,
+      "batch_size": 32,
+      "num_workers": 0,
+      "ckpt_dir": "training/ckpts",
+      "run_dir": "training/runs",
+      "results_dir": "results",
+      "resume_path": null,
+      "save_curves": true,
+      "save_training_curves": true
+    },
+    "test_metrics": {
+      "loss": 0.45623743534088135,
+      "accuracy": 0.5234375,
+      "finger_accuracy": 0.7515625,
+      "precision_macro": 0.5991737203524734,
+      "recall_macro": 0.7835714285714286,
+      "f1_macro": 0.6785901983808365,
+      "auprc_macro": 0.7727354552939476,
+      "auroc_macro": 0.8577800324675323,
+      "auprc_micro": 0.7859399969046743,
+      "auroc_micro": 0.8641411163522013,
+      "per_finger": {
+        "finger_0": {
+          "precision": 0.6370370370365652,
+          "recall": 0.7678571428564572,
+          "f1": 0.6963562752535135,
+          "auprc": 0.620530559298352,
+          "auroc": 0.7706473214285714
+        },
+        "finger_1": {
+          "precision": 0.5840707964596601,
+          "recall": 0.8249999999989688,
+          "f1": 0.6839378237849499,
+          "auprc": 0.8098768260189982,
+          "auroc": 0.8826704545454546
+        },
+        "finger_2": {
+          "precision": 0.6320754716975169,
+          "recall": 0.8374999999989531,
+          "f1": 0.720430107477084,
+          "auprc": 0.857598897041379,
+          "auroc": 0.9102982954545454
+        },
+        "finger_3": {
+          "precision": 0.5981308411209363,
+          "recall": 0.799999999999,
+          "f1": 0.6844919785599359,
+          "auprc": 0.8111791493888918,
+          "auroc": 0.88828125
+        },
+        "finger_4": {
+          "precision": 0.5445544554450054,
+          "recall": 0.6874999999991406,
+          "f1": 0.6077348065798357,
+          "auprc": 0.7644918447221166,
+          "auroc": 0.8370028409090908
+        }
+      }
+    },
+    "results_path": "results\\pretrain\\lstm"
+  },
+  "finetune": {
+    "stage": "finetune",
+    "best_value": 0.8194444444444444,
+    "best_params": {
+      "dropout": 0.6,
+      "lr": 0.00022050934269920172,
+      "batch_size": 32,
+      "weight_decay": 0.00019249920232867403,
+      "patience": 25,
+      "freeze_backbone_epochs": 10,
+      "backbone_lr": 6.312624682643374e-05,
+      "head_lr": 0.00031003253772120157
+    },
+    "best_config": {
+      "model_name": "lstm",
+      "training_stage": "finetune",
+      "out_dim": 5,
+      "threshold": 0.5,
+      "lr": 0.00022050934269920172,
+      "weight_decay": 0.00019249920232867403,
+      "epochs": 200,
+      "patience": 25,
+      "lr_patience": 10,
+      "lr_factor": 0.5,
+      "min_lr": 1e-06,
+      "device": "cuda",
+      "seed": 42,
+      "use_feature_adapter": true,
+      "processed_dir": "datasets/processed/physiomio/impaired",
+      "train_file": "train.pt",
+      "val_file": "val.pt",
+      "test_file": "test.pt",
+      "pretrained_ckpt_path": "C:\\Users\\namgy\\OneDrive\\Desktop\\psr-pipeline\\results\\pretrain\\lstm\\checkpoint_best.pt",
+      "pretrained_init": "backbone",
+      "freeze_backbone_epochs": 10,
+      "backbone_lr": 6.312624682643374e-05,
+      "head_lr": 0.00031003253772120157,
+      "lstm_hidden1": 128,
+      "lstm_hidden2": 256,
+      "lstm_fc_hidden": 128,
+      "lstm_dropout": 0.6,
+      "early_stop_metric": "finger_accuracy",
+      "tune_threshold": true,
+      "batch_size": 32,
+      "num_workers": 0,
+      "ckpt_dir": "training/ckpts",
+      "run_dir": "training/runs",
+      "results_dir": "results",
+      "resume_path": null,
+      "save_curves": true,
+      "save_training_curves": true
+    },
+    "test_metrics": {
+      "loss": 0.5460452265209622,
+      "accuracy": 0.5736111111111111,
+      "finger_accuracy": 0.7772222222222221,
+      "precision_macro": 0.6844941028415292,
+      "recall_macro": 0.6476190476190476,
+      "f1_macro": 0.659869179698287,
+      "auprc_macro": 0.7359263693973334,
+      "auroc_macro": 0.8295324889102667,
+      "auprc_micro": 0.7402389218967343,
+      "auroc_micro": 0.8295074669358387,
+      "per_finger": {
+        "finger_0": {
+          "precision": 0.7416974169738961,
+          "recall": 0.6380952380950355,
+          "f1": 0.6860068258886144,
+          "auprc": 0.7134634693811086,
+          "auroc": 0.7964256319811875
+        },
+        "finger_1": {
+          "precision": 0.650655021833777,
+          "recall": 0.662222222221928,
+          "f1": 0.6563876651479527,
+          "auprc": 0.7671793215359562,
+          "auroc": 0.8430976430976431
+        },
+        "finger_2": {
+          "precision": 0.7707006369421844,
+          "recall": 0.5377777777775388,
+          "f1": 0.6335078533543942,
+          "auprc": 0.7312907508201095,
+          "auroc": 0.8342087542087543
+        },
+        "finger_3": {
+          "precision": 0.6550218340608494,
+          "recall": 0.6666666666663704,
+          "f1": 0.660792951491563,
+          "auprc": 0.734962471725333,
+          "auroc": 0.8422805836139169
+        },
+        "finger_4": {
+          "precision": 0.604395604395383,
+          "recall": 0.7333333333330074,
+          "f1": 0.662650602359837,
+          "auprc": 0.7327358335241594,
+          "auroc": 0.8316498316498316
+        }
+      }
+    },
+    "results_path": "results\\finetune\\lstm"
+  }
+}

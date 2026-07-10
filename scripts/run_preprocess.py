@@ -4,7 +4,12 @@ from __future__ import annotations
 
 import argparse
 import os
+import sys
 from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 from datasets.loaders import make_dataloaders, LoaderConfig
 
@@ -15,6 +20,44 @@ def _delete_existing(processed_dir: Path, train_file: str, val_file: str, test_f
         p = processed_dir / name
         if p.exists():
             p.unlink()
+
+
+def _build_one_split(
+    *,
+    arm_split: str,
+    raw_dir: Path,
+    processed_dir: Path,
+    args: argparse.Namespace,
+) -> None:
+    os.makedirs(processed_dir, exist_ok=True)
+
+    if args.force:
+        _delete_existing(processed_dir, args.train_file, args.val_file, args.test_file)
+
+    cfg = LoaderConfig(
+        batch_size=64,
+        num_workers=0,
+        seed=args.seed,
+        out_dim=args.out_dim,
+        use_physiomio_if_missing=True,
+        physiomio_raw_dir=str(raw_dir),
+        physiomio_fs=float(args.fs),
+        arm_split=arm_split,
+        impaired_only=(arm_split == "impaired"),
+        min_segment_samples=int(args.min_seg_samples),
+        skip_rest=bool(args.skip_rest),
+        max_patients=args.max_patients,
+    )
+
+    make_dataloaders(
+        processed_dir=str(processed_dir),
+        train_file=args.train_file,
+        val_file=args.val_file,
+        test_file=args.test_file,
+        cfg=cfg,
+    )
+
+    print(f"Saved {arm_split} processed data under: {processed_dir}")
 
 
 def main() -> None:
@@ -31,11 +74,14 @@ def main() -> None:
     parser.add_argument("--test-file", type=str, default="test.pt")
 
     parser.add_argument("--fs", type=float, default=2000.0)
-    parser.add_argument("--impaired-only", action="store_true", default=True)
+    parser.add_argument("--arm-split", choices=("impaired", "healthy", "both"), default="impaired")
+    parser.add_argument("--separate-arm-dirs", action="store_true", default=False)
+    parser.add_argument("--impaired-only", action="store_true", default=None)
     parser.add_argument("--include-healthy", action="store_true", default=False)
 
     parser.add_argument("--min-seg-samples", type=int, default=200)
     parser.add_argument("--skip-rest", action="store_true", default=False)
+    parser.add_argument("--max-patients", type=int, default=None)
 
     parser.add_argument("--out-dim", type=int, default=5)
     parser.add_argument("--seed", type=int, default=42)
@@ -48,37 +94,33 @@ def main() -> None:
 
     raw_dir = Path(args.raw_dir)
     processed_dir = Path(args.processed_dir)
-    os.makedirs(processed_dir, exist_ok=True)
 
-    impaired_only = args.impaired_only and (not args.include_healthy)
+    arm_split = args.arm_split
+    if args.include_healthy:
+        arm_split = "both"
+    elif args.impaired_only is True:
+        arm_split = "impaired"
 
-    if args.force:
-        _delete_existing(processed_dir, args.train_file, args.val_file, args.test_file)
+    if arm_split == "both" and args.separate_arm_dirs:
+        for split_name in ("healthy", "impaired"):
+            _build_one_split(
+                arm_split=split_name,
+                raw_dir=raw_dir,
+                processed_dir=processed_dir / split_name,
+                args=args,
+            )
 
-    cfg = LoaderConfig(
-        batch_size=64,
-        num_workers=0,
-        seed=args.seed,
-        out_dim=args.out_dim,
-        use_physiomio_if_missing=True,
-        physiomio_raw_dir=str(raw_dir),
-        physiomio_fs=float(args.fs),
-        impaired_only=bool(impaired_only),
-        min_segment_samples=int(args.min_seg_samples),
-        skip_rest=bool(args.skip_rest),
-    )
+        print("Processed data ready.")
+        return
 
-    # This call builds processed splits if they do not exist
-    make_dataloaders(
-        processed_dir=str(processed_dir),
-        train_file=args.train_file,
-        val_file=args.val_file,
-        test_file=args.test_file,
-        cfg=cfg,
+    _build_one_split(
+        arm_split=arm_split,
+        raw_dir=raw_dir,
+        processed_dir=processed_dir,
+        args=args,
     )
 
     print("Processed data ready.")
-    print(f"Saved under: {processed_dir}")
 
 
 if __name__ == "__main__":
