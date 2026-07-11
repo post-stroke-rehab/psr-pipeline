@@ -1,0 +1,22 @@
+\begin{tikzpicture}
+\begin{axis}[
+  ybar,
+  width=0.98\linewidth,
+  height=6.8cm,
+  ymin=0.40,
+  ymax=0.90,
+  ylabel={Score},
+  symbolic x coords={Exact-match,Finger Acc.,Macro F1,Macro AUROC,Macro AUPRC},
+  xtick=data,
+  xticklabel style={rotate=20,anchor=east,font=\small},
+  ymajorgrids=true,
+  grid style={dashed,gray!30},
+  legend style={at={(0.5,1.15)},anchor=south,legend columns=-1,draw=none,font=\small},
+  bar width=8pt,
+]
+\addplot coordinates {(Exact-match,0.545) (Finger Acc.,0.784) (Macro F1,0.705) (Macro AUROC,0.858) (Macro AUPRC,0.754)};
+\addplot coordinates {(Exact-match,0.448) (Finger Acc.,0.683) (Macro F1,0.706) (Macro AUROC,0.787) (Macro AUPRC,0.776)};
+\addplot coordinates {(Exact-match,0.442) (Finger Acc.,0.694) (Macro F1,0.676) (Macro AUROC,0.767) (Macro AUPRC,0.764)};
+\legend{LSTM,GNN,CNN}
+\end{axis}
+\end{tikzpicture}

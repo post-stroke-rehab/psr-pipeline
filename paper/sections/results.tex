@@ -1,0 +1,37 @@
+\section{Results}
+
+The current repository benchmark exposes a clear trade-off between balanced sequence modeling and high-recall graph modeling. Table~\ref{tab:model-comparison} shows that the LSTM achieves the strongest exact-match accuracy, finger accuracy, and macro AUROC, while the GNN narrowly leads on macro F1 and macro AUPRC. The CNN remains competitive as a lightweight baseline but does not surpass the best LSTM or GNN score on any headline metric in the saved artifacts.
+
+\begin{table}[t]
+  \centering
+  \caption{Held-out test performance from the repository metric files. Bold numbers mark the best score in each column.}
+  \label{tab:model-comparison}
+  \input{tables/model_comparison.tex}
+\end{table}
+
+\begin{figure}[t]
+  \centering
+  \input{figures/model_comparison_plot.tex}
+  \caption{Metric-level comparison across the three saved model families. The GNN leads on recall-sensitive summary metrics, while the LSTM leads on exact-match accuracy, finger accuracy, and macro AUROC.}
+  \label{fig:model-comparison}
+\end{figure}
+
+The gap between the GNN and the LSTM is easiest to interpret through precision-recall behavior. The GNN posts the highest macro recall among the saved runs (0.832 versus 0.768 for the LSTM and 0.697 for the CNN), which lifts its macro F1 and AUPRC. The LSTM, however, converts that lower recall into materially stronger exact-match behavior and substantially stronger AUROC, suggesting a more balanced discrimination profile across thresholds.
+
+Finger-wise scores show that the ranking is not uniform across all outputs. Table~\ref{tab:per-finger-f1} indicates that the GNN is strongest on the thumb label, while the LSTM is strongest on the index, middle, ring, and little finger labels. This pattern is consistent with the repository-wide picture: graph aggregation appears to favor aggressive positive detection, whereas the recurrent model distributes performance more evenly across fingers.
+
+\begin{table}[t]
+  \centering
+  \caption{Per-finger F1 score by model family. Bold numbers mark the strongest model for each finger.}
+  \label{tab:per-finger-f1}
+  \input{tables/per_finger_f1.tex}
+\end{table}
+
+\begin{figure}[t]
+  \centering
+  \input{figures/per_finger_f1_plot.tex}
+  \caption{Per-finger F1 comparison derived from the saved metric files. The LSTM wins four of five finger labels, while the GNN is strongest on the thumb class.}
+  \label{fig:per-finger-f1}
+\end{figure}
+
+One additional paper-level update is worth noting. The top-level repository README foregrounds the GNN and CNN comparison, but the repository also contains complete LSTM metric artifacts under `metrics/lstm/`. Including those saved LSTM results materially changes the interpretation of the benchmark, because the best overall system is no longer a simple GNN-versus-CNN choice.

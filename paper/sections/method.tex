@@ -1,0 +1,40 @@
+\section{Method}
+
+\subsection{Overview}
+
+\repo\ implements a modular decoding workflow that starts from raw multichannel sEMG and ends with five sigmoid-compatible logits, one for each finger class. The method is organized around four modules: signal preprocessing, window-level feature extraction, tensor adaptation, and model-specific prediction heads. Figure~\ref{fig:pipeline} summarizes the repository pipeline and the shared interfaces between modules.
+
+\begin{figure}[t]
+  \centering
+  \input{figures/pipeline_overview.tex}
+  \caption{Repository pipeline documented in this paper. The same preprocessing and feature representation are reused across LSTM, CNN, and GNN predictors, which makes the saved benchmark artifacts directly comparable.}
+  \label{fig:pipeline}
+\end{figure}
+
+\subsection{Signal preprocessing}
+
+The preprocessing module is explicitly parameterized by a frozen configuration object in the repository. Raw sEMG first passes through a fourth-order Butterworth band-pass filter with 20--450 Hz cutoffs and zero-phase forward-backward application. This stage suppresses low-frequency motion artifacts and high-frequency electrical noise while preserving time alignment across channels.
+
+The filtered signal is then denoised with wavelet soft-thresholding. The default configuration uses a Symlet-4 basis, four decomposition levels, universal threshold selection, and a median-based noise estimate. Although the repository does not yet include an ablation isolating this choice, the implementation makes the denoising rule explicit and reproducible.
+
+After denoising, the continuous recording is segmented into 200 ms windows with 50\% overlap. These window settings balance temporal responsiveness with a sufficient sample count for stable summary statistics. The repository disables zero-padding by default, so each window represents observed signal rather than synthetic boundary content.
+
+\subsection{Window-level feature representation}
+
+Each channel-window pair is summarized by twelve handcrafted descriptors spanning time and frequency domains. The time-domain set includes RMS, mean absolute value, integrated EMG, waveform length, variance, zero crossings, slope sign changes, and Willison amplitude. The frequency-domain set includes mean frequency, median frequency, spectral entropy, and total power, with spectral quantities estimated from Welch periodograms~\citep{welch1967fft}. The resulting tensor has shape $(C, W, F)$, where $C$ is the number of channels, $W$ is the number of windows, and $F=12$ is the feature count.
+
+\subsection{Shared tensor adapter}
+
+The repository standardizes cross-model comparison with one shared adapter. It transforms $(C, W, F)$ tensors into $(N, W, C \times F)$ sequences, where windows act as time steps and all channel features are concatenated into one vector per step. This small interface decision matters because it allows recurrent, convolutional, and graph-based predictors to consume the same derived representation without duplicating preprocessing code.
+
+\subsection{Predictor families}
+
+The LSTM branch applies two stacked recurrent layers with hidden sizes 128 and 256, followed by a 128-unit fully connected layer and dropout before five output logits. This branch emphasizes temporal accumulation across windows and, in the saved metrics, yields the strongest exact-match accuracy, finger accuracy, and AUROC.
+
+The CNN branch wraps several 1D convolutional student models behind a channels-first permutation layer. In the current training code, the benchmarked CNN consumes the shared window-level sequence after permutation from $(N, W, C \times F)$ to $(N, C \times F, W)$. The repository supports multiple model sizes, but the saved benchmark artifacts are presented as one CNN baseline rather than a full architecture sweep.
+
+The GNN branch interprets each time window as a node in a graph. The implementation supports GCN, GraphSAGE, and GAT operators~\citep{kipf2017gcn,hamilton2017graphsage,velickovic2018gat}; the published repository narrative highlights a two-layer, 64-hidden-dimension configuration with mean pooling. In the current code, graphs are built densely across windows within each sample, enabling message passing over the full temporal context before graph-level pooling and readout.
+
+\subsection{Training and evaluation protocol}
+
+The training utilities unify optimization and reporting across model families. The repository uses binary cross-entropy with logits for five-label prediction, Adam-based optimization, plateau-triggered learning-rate reduction, checkpointing, and saved metric curves. Evaluation reports exact-match accuracy, per-finger averaged accuracy, macro precision, macro recall, macro F1, macro AUROC, and macro AUPRC. The metrics module also stores per-finger scores and task-level curve data, which makes both aggregate and finger-wise analysis available after training.

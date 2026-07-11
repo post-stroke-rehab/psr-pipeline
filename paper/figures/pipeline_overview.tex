@@ -1,0 +1,32 @@
+\begin{tikzpicture}[
+  node distance=0.7cm and 0.55cm,
+  box/.style={draw, rounded corners, align=center, minimum width=2.25cm, minimum height=0.95cm, fill=blue!6},
+  smallbox/.style={draw, rounded corners, align=center, minimum width=2.45cm, minimum height=0.85cm, fill=green!7},
+  modelbox/.style={draw, rounded corners, align=center, minimum width=2.25cm, minimum height=0.95cm, fill=orange!10},
+  arrow/.style={->, thick}
+]
+  \node[box] (raw) {Raw multichannel\\sEMG segments};
+  \node[box, right=of raw] (bandpass) {20--450 Hz\\band-pass filter};
+  \node[box, right=of bandpass] (wavelet) {Wavelet\\denoising};
+  \node[box, right=of wavelet] (window) {200 ms windows\\50\% overlap};
+  \node[smallbox, below=of wavelet] (features) {12 features per\\channel-window};
+  \node[smallbox, below=of features] (tensor) {Standard tensor\\$(C, W, F)$};
+  \node[smallbox, below left=1.05cm and 2.0cm of tensor] (adapter) {Shared adapter\\$(N, W, C \times F)$};
+  \node[modelbox, below=1.2cm of tensor] (lstm) {LSTM};
+  \node[modelbox, left=of lstm] (cnn) {CNN};
+  \node[modelbox, right=of lstm] (gnn) {GNN};
+  \node[box, below=of lstm] (metrics) {Multi-label metrics,\\curves, confusion plots};
+
+  \draw[arrow] (raw) -- (bandpass);
+  \draw[arrow] (bandpass) -- (wavelet);
+  \draw[arrow] (wavelet) -- (window);
+  \draw[arrow] (window) -- (features);
+  \draw[arrow] (features) -- (tensor);
+  \draw[arrow] (tensor) -- (adapter);
+  \draw[arrow] (adapter) -- (cnn);
+  \draw[arrow] (adapter) -- (lstm);
+  \draw[arrow] (adapter) -- (gnn);
+  \draw[arrow] (cnn) -- (metrics);
+  \draw[arrow] (lstm) -- (metrics);
+  \draw[arrow] (gnn) -- (metrics);
+\end{tikzpicture}

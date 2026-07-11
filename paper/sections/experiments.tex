@@ -1,0 +1,17 @@
+\section{Experiments}
+
+\subsection{Dataset and split construction}
+
+All benchmark artifacts analyzed in this paper come from the repository's \physiomio\ processing path~\citep{physiomio2026,psrrepo2026}. The data loader searches raw parquet files, extracts contiguous movement segments, maps gesture labels to five-bit finger targets, preprocesses each segment, and stores processed tensors as PyTorch split files.
+
+The split logic is patient-level rather than segment-level. Patients are shuffled with a fixed seed and divided into 70\% train, 10\% validation, and 20\% test partitions, which reduces identity leakage between train and test segments. The default loader configuration targets impaired-arm recordings unless the user explicitly changes the arm-split setting, so the main benchmark should be interpreted as a post-stroke impaired-arm decoding study.
+
+\subsection{Implementation scope}
+
+The repository exposes a richer experimental surface than the evidence-complete benchmark summarized in this paper. In addition to direct LSTM, CNN, and GNN runs, the codebase contains healthy-to-impaired pretraining and finetuning scripts, optional threshold tuning, class-imbalance weighting, and multiple graph and CNN variants. However, not all of those branches are reported with equally complete comparison tables, so this paper centers its headline claims on the metric files already saved under `metrics/`.
+
+\subsection{Evaluation protocol}
+
+The README defines the benchmark as five-class multi-label classification with a nominal decision threshold of 0.5 on the held-out test split. For transparency, the metric implementation also records exact-match accuracy and per-finger summaries, which is important because different models may trade precision for recall while achieving similar binary correctness at the finger level.
+
+This paper follows the experimental writing guidance of the external `Research-Paper-Writing-Skills` workflow by tying every headline claim to an existing artifact. Because no ablation package is currently stored in the repository, we deliberately avoid module-level causality claims and instead focus on benchmark-level observations that are directly supported by saved outputs.
