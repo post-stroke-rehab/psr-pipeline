@@ -16,6 +16,10 @@ Claim: `The shared adapter converts standardized feature tensors into (N, W, C×
 Evidence: `adapters/feature_to_sequence.py`, `training/train.py`.  
 Status: supported
 
+Claim: `The paper's updated system figure surfaces data harmonization steps such as label alignment, patient-level splitting, and tensor caching that are implemented across the repository workflow.`  
+Evidence: `datasets/loaders.py`, `data_processing/`, `README.md`, committed figure asset `paper/figures/pipeline_overview.png`.  
+Status: supported
+
 Claim: `The data loader uses patient-level 70/10/20 splitting to reduce train-test leakage.`  
 Evidence: `datasets/loaders.py`.  
 Status: supported
@@ -38,6 +42,18 @@ Status: supported
 
 Claim: `The repository contains two-stage healthy-to-impaired training artifacts, but they are summarized separately from the main benchmark tables.`  
 Evidence: `scripts/run_two_stage.py`, `results/README.md`.  
+Status: supported
+
+Claim: `Open PR #56 reorganizes the CNN branch into modular student, teacher, training, distillation, and optimization stages around explicit 1D input reshaping.`  
+Evidence: PR `#56` description and changed-file patches (`models/CNN/README.md`, `models/CNN/optimization.py`).  
+Status: supported as open-PR evidence
+
+Claim: `Open PR #59 adds ensemble distillation, per-finger threshold tuning, and local CPU latency benchmarking, and reports a provisional CNN-Micro distilled checkpoint that improves on the stated CNN baseline.`  
+Evidence: PR `#59` description and changed-file patches (`training/train_distill.py`, `training/teacher_ensemble.py`, `scripts/eval_thresholds.py`, `scripts/benchmark_student_latency.py`).  
+Status: supported as open-PR evidence
+
+Claim: `Open PR details are treated in the paper as pending extensions rather than merged benchmark evidence.`  
+Evidence: manuscript framing in `sections/abstract.tex`, `sections/experiments.tex`, `sections/results.tex`, `sections/discussion.tex`.  
 Status: supported
 
 Claim: `This manuscript is a systems benchmark paper, not a state-of-the-art algorithm paper.`  

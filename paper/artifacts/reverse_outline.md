@@ -3,15 +3,15 @@
 ## Abstract
 
 - **Paragraph 1 topic:** the paper documents a reproducible repository workflow for post-stroke sEMG finger-intent decoding.
-- **Support points:** reproducibility problem, pipeline modules, headline benchmark numbers, scope limitation.
+- **Support points:** reproducibility problem, pipeline modules, headline benchmark numbers, open-PR extension note, scope limitation.
 
 ## Introduction
 
 - **Paragraph 1 topic:** finger-intent decoding matters for rehabilitation interfaces.
 - **Paragraph 2 topic:** the main challenge is full-pipeline reproducibility, not just classifier choice.
-- **Paragraph 3 topic:** the repository solves that engineering gap by co-locating the full workflow.
+- **Paragraph 3 topic:** the repository solves that engineering gap by co-locating the full workflow and exposing near-term CNN extensions in open PRs.
 - **Paragraph 4 topic:** the paper's contribution is systems-oriented rather than novelty-oriented.
-- **Paragraph 5 topic:** the manuscript contribution list updates the repo benchmark and states scope honestly.
+- **Paragraph 5 topic:** the manuscript contribution list updates the repo benchmark, logs the open PR extensions, and states scope honestly.
 
 ## Related Work
 
@@ -21,18 +21,19 @@
 
 ## Method
 
-- **Overview paragraph topic:** the method is a four-module pipeline ending in five-label prediction.
+- **Overview paragraph topic:** the method is a four-band pipeline from ingestion through deployment-facing analysis.
+- **Ingestion paragraph topic:** label alignment, structured loading, patient-level splitting, and tensor caching define the task boundary.
 - **Preprocessing paragraph topics:** band-pass filtering, wavelet denoising, and overlapping windowing.
 - **Representation paragraph topic:** 12 handcrafted descriptors define a consistent window-level tensor.
-- **Adapter paragraph topic:** one shared sequence representation enables fair cross-model comparison.
-- **Predictor paragraph topics:** LSTM, CNN, and GNN each consume the same representation with different inductive biases.
-- **Training paragraph topic:** the training code standardizes loss, optimization, checkpointing, and metric reporting.
+- **Adapter paragraph topic:** one shared sequence representation enables fair cross-model comparison and explicit CNN reshaping.
+- **Predictor paragraph topics:** LSTM, CNN, and GNN each consume the same representation with different inductive biases, and the open PRs deepen the CNN branch.
+- **Training paragraph topic:** the training code standardizes loss, optimization, checkpointing, metric reporting, and tuning hooks.
 
 ## Experiments
 
 - **Dataset paragraph topic:** processed PhysioMio tensors are built from contiguous labeled segments.
 - **Split paragraph topic:** the benchmark uses patient-level 70/10/20 partitioning and defaults to impaired-arm recordings.
-- **Scope paragraph topic:** only evidence-complete artifacts under `metrics/` are used for headline claims.
+- **Scope paragraph topic:** only evidence-complete artifacts under `metrics/` are used for headline claims, while open PRs are logged separately.
 - **Protocol paragraph topic:** the write-up maps each claim to an existing repository artifact.
 
 ## Results
@@ -40,15 +41,18 @@
 - **Paragraph 1 topic:** the LSTM and GNN trade different strengths across aggregate metrics.
 - **Paragraph 2 topic:** grouped metrics show the LSTM leads on exact-match behavior and AUROC.
 - **Paragraph 3 topic:** higher GNN recall explains its F1 and AUPRC advantage.
+- **Paragraph 4 topic:** open PR #59 reports provisional distilled-CNN gains and proxy latency evidence.
 - **Paragraph 4 topic:** per-finger scores show GNN thumb strength and more balanced LSTM performance elsewhere.
 - **Paragraph 5 topic:** including the stored LSTM artifacts materially updates the README-level comparison.
+- **Paragraph 6 topic:** the open CNN PRs suggest the ranking is still evolving.
 
 ## Discussion
 
 - **Paragraph 1 topic:** the repository is already valuable as a reproducible benchmark scaffold.
 - **Paragraph 2 topic:** the benchmark suggests complementary strengths for recurrent and graph formulations.
 - **Paragraph 3 topic:** two-stage transfer artifacts are promising but currently secondary.
-- **Paragraph 4 topic:** the repo still lacks broader empirical coverage and integrated evaluation for all branches.
+- **Paragraph 4 topic:** the open CNN PRs identify a plausible edge-deployment extension path.
+- **Paragraph 5 topic:** the repo still lacks broader empirical coverage and integrated evaluation for all branches, and deployment boxes in the figure remain aspirational.
 
 ## Conclusion
 

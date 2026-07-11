@@ -2,8 +2,8 @@
 
 ## Figure 1: Pipeline Overview
 
-- Source basis: `README.md`, `data_processing/preprocess_config.py`, `adapters/feature_to_sequence.py`, `training/train.py`
-- Construction: redrawn as a paper-specific TikZ figure in `figures/pipeline_overview.tex`
+- Source basis: user-supplied pipeline image committed as `figures/pipeline_overview.png`, cross-checked against `README.md`, `datasets/loaders.py`, `data_processing/preprocess_config.py`, `adapters/feature_to_sequence.py`, `training/train.py`, and open PRs `#56` and `#59`
+- Construction: supplied image copied into the paper assets and referenced directly from `sections/method.tex`
 
 ## Figure 2 and Table 1: Model Comparison
 
