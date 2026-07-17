@@ -11,12 +11,14 @@ datasets/toy_semg/
 physiomio/
 
 # Ignore processed and raw data
-datasets/processed/physiomio/
+datasets/processed/
 datasets/raw/physiomio/
 
 training/ckpts/
 training/runs/
 
+# CNN trained checkpoints (not for VCS)
+models/CNN/checkpoints/
 # Local checkpoints only; plots + README in results/ are fine to commit
 results/**/*.pt
 training/tuning/**/*.db
