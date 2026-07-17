@@ -1,0 +1,15 @@
+=== LSTM Optuna (pretrain) ===
+trials: 60
+best val finger_accuracy: 0.8550
+best params:
+  hidden1: 128
+  hidden2: 256
+  fc_hidden: 128
+  dropout: 0.55
+  lr: 0.00013560864433880123
+  batch_size: 32
+  weight_decay: 0.00010933191318946789
+  patience: 30
+
+reproduce:
+python training/train.py --model lstm --stage pretrain --device cuda --batch_size 32 --early-stop-metric finger_accuracy --lr 0.00013560864433880123 --lstm-hidden1 128 --lstm-hidden2 256 --lstm-fc-hidden 128
