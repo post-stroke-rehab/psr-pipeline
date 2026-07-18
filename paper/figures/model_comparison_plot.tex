@@ -12,11 +12,12 @@
   ymajorgrids=true,
   grid style={dashed,gray!30},
   legend style={at={(0.5,1.15)},anchor=south,legend columns=-1,draw=none,font=\small},
-  bar width=8pt,
+  bar width=6pt,
 ]
 \addplot coordinates {(Exact-match,0.545) (Finger Acc.,0.784) (Macro F1,0.705) (Macro AUROC,0.858) (Macro AUPRC,0.754)};
 \addplot coordinates {(Exact-match,0.448) (Finger Acc.,0.683) (Macro F1,0.706) (Macro AUROC,0.787) (Macro AUPRC,0.776)};
 \addplot coordinates {(Exact-match,0.442) (Finger Acc.,0.694) (Macro F1,0.676) (Macro AUROC,0.767) (Macro AUPRC,0.764)};
-\legend{LSTM,GNN,CNN}
+\addplot coordinates {(Exact-match,0.593) (Finger Acc.,0.798) (Macro F1,0.714) (Macro AUROC,0.881) (Macro AUPRC,0.812)};
+\legend{LSTM,GNN,CNN Legacy,CNN-Large}
 \end{axis}
 \end{tikzpicture}

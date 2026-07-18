@@ -1,10 +1,10 @@
 # Mini Outline
 
-- **Abstract:** summarize the reproducibility problem, the pipeline contribution, the benchmarked models, the headline metrics, and the evidence scope limit.
-- **Introduction:** motivate post-stroke finger-intent decoding, expose the reproducibility challenge, position the repo as a systems contribution, and list concrete paper contributions.
-- **Related Work:** cover sEMG rehabilitation interfaces, sequence models, and graph models, then explain how this paper differs.
-- **Method:** document preprocessing, feature extraction, shared tensorization, predictor families, and training/evaluation utilities.
-- **Experiments:** describe dataset construction, patient-level splitting, benchmark scope, and the claim-evidence discipline used in this write-up.
-- **Results:** compare LSTM, GNN, and CNN; add per-finger analysis; note that LSTM artifacts materially update the repo's README-level comparison.
-- **Discussion:** interpret the model trade-offs, discuss the two-stage transfer branch, and state current limitations.
-- **Conclusion:** restate the repository contribution and the clearest next steps.
+- **Abstract:** summarize the software-only scope, the edge-oriented motivation, the full pipeline, the strongest merged CNN benchmark results, and the remaining deployment evidence gap.
+- **Introduction:** motivate post-stroke finger-intent decoding for rehabilitation hardware, explain why reproducible software stacks matter, and define the paper's contribution as an arXiv-ready systems manuscript.
+- **Related Work:** connect stroke-rehabilitation sEMG literature to gesture-recognition surveys, temporal models, graph models, and deployment-aware compression.
+- **Method:** document ingestion, preprocessing, feature extraction, tensor adaptation, LSTM/GNN/CNN families, transfer-learning support, and deployment-facing utilities.
+- **Experiments:** describe patient-level splits, evidence tiers, evaluation metrics, and the paper's evidence-constrained reporting policy.
+- **Results:** show that optimized CNN students now lead the committed benchmark, summarize the student sweep, discuss teacher and transfer-learning evidence, and compare per-finger behavior.
+- **Discussion:** interpret the repository's updated software contribution, explain what the results say about edge-oriented modeling, and state the most important missing evidence.
+- **Conclusion:** restate the repository-level contribution and point to distilled-student and Raspberry Pi validation as the next evidence milestone.

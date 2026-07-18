@@ -1,10 +1,11 @@
 \section{Results}
 
-The current repository benchmark exposes a clear trade-off between balanced sequence modeling and high-recall graph modeling. Table~\ref{tab:model-comparison} shows that the LSTM achieves the strongest exact-match accuracy, finger accuracy, and macro AUROC, while the GNN narrowly leads on macro F1 and macro AUPRC. The CNN remains competitive as a lightweight baseline but does not surpass the best LSTM or GNN score on any headline metric in the saved artifacts.
+The updated repository no longer reads as a simple LSTM-versus-GNN benchmark. Table~\ref{tab:model-comparison} shows four distinct reference points: the historical LSTM, GNN, and CNN direct baselines stored under \texttt{metrics/}, and the strongest merged optimized CNN artifact, Optuna CNN-Large, stored under \texttt{models/CNN/evaluations/}. The optimized CNN-Large model is the strongest committed result bundle overall, exceeding all three historical baselines on exact-match accuracy, finger accuracy except for a negligible margin against CNN-Base, macro F1, macro AUROC, and macro AUPRC.
 
 \begin{table}[t]
   \centering
-  \caption{Held-out test performance from the repository metric files. Bold numbers mark the best score in each column.}
+  \small
+  \caption{Held-out test performance from the repository metric files. The first three rows are historical direct baselines; the final row is the strongest merged optimized CNN artifact. Bold numbers mark the best score in each column.}
   \label{tab:model-comparison}
   \input{tables/model_comparison.tex}
 \end{table}
@@ -12,19 +13,40 @@ The current repository benchmark exposes a clear trade-off between balanced sequ
 \begin{figure}[t]
   \centering
   \input{figures/model_comparison_plot.tex}
-  \caption{Metric-level comparison across the three saved model families. The GNN leads on recall-sensitive summary metrics, while the LSTM leads on exact-match accuracy, finger accuracy, and macro AUROC.}
+  \caption{Aggregate-metric comparison across historical direct baselines and the strongest optimized CNN artifact. The merged CNN-Large model shifts the frontier relative to the older direct benchmark files.}
   \label{fig:model-comparison}
 \end{figure}
 
-The gap between the GNN and the LSTM is easiest to interpret through precision-recall behavior. The GNN posts the highest macro recall among the saved runs (0.832 versus 0.768 for the LSTM and 0.697 for the CNN), which lifts its macro F1 and AUPRC. The LSTM, however, converts that lower recall into materially stronger exact-match behavior and substantially stronger AUROC, suggesting a more balanced discrimination profile across thresholds.
+The change from the legacy CNN baseline to the optimized CNN-Large artifact is particularly informative. Exact-match accuracy rises from 0.442 to 0.593, macro F1 from 0.676 to 0.714, macro AUROC from 0.767 to 0.881, and macro AUPRC from 0.764 to 0.812. This is not a minor bookkeeping difference. It shows that once the repository's modular CNN stack, tuned architecture search, and updated evaluation bundle are taken into account, the software story becomes substantially more favorable to compact convolutional models than the older README-era comparison suggested.
 
-Open PR evidence suggests that the CNN branch may move closer to the LSTM and GNN frontier once distillation utilities are merged. PR \#59 reports a provisional CNN-Micro student distilled from a CNN teacher with macro F1 0.7096, finger accuracy 0.7990, macro AUROC 0.8662, and macro AUPRC 0.7838, improving over the pull request's stated CNN baseline of 0.6817, 0.7750, 0.8559, and 0.7319 while keeping the student at 51{,}493 parameters~\citep{psrpr59distill2026}. Because those numbers currently live in an open pull request rather than the committed `metrics/` tree, we report them here as provisional extension evidence instead of merging them into Table~\ref{tab:model-comparison}. The same PR also records local CPU proxy latency of 0.274 ms per sample on average with a 0.505 ms p95, which is useful for screening edge candidates but is not a substitute for hardware-validated rehabilitation timing.
-
-Finger-wise scores show that the ranking is not uniform across all outputs. Table~\ref{tab:per-finger-f1} indicates that the GNN is strongest on the thumb label, while the LSTM is strongest on the index, middle, ring, and little finger labels. This pattern is consistent with the repository-wide picture: graph aggregation appears to favor aggressive positive detection, whereas the recurrent model distributes performance more evenly across fingers.
+The optimized CNN student sweep in Table~\ref{tab:cnn-sweep} clarifies the deployment-oriented trade-off. CNN-Large is best on exact-match accuracy, macro F1, macro AUROC, and macro AUPRC, while CNN-Base is effectively tied on finger accuracy. At the same time, the Nano and Micro students remain close to the larger models despite much smaller footprints. This is the key edge-computing result in the repository: the compact students do not collapse in quality when the model is pushed into Raspberry Pi-friendly size ranges.
 
 \begin{table}[t]
   \centering
-  \caption{Per-finger F1 score by model family. Bold numbers mark the strongest model for each finger.}
+  \small
+  \caption{Merged CNN student sweep. Parameter counts and INT8 sizes come from the repository CNN README; metrics come from committed evaluation bundles.}
+  \label{tab:cnn-sweep}
+  \input{tables/cnn_student_sweep.tex}
+\end{table}
+
+Teacher results provide a useful reference for how far the compact students can go without explicit deployment measurements. Among the committed teacher checkpoints, ResNet-152 is strongest with 0.588 exact-match accuracy, 0.698 macro F1, 0.870 macro AUROC, and 0.787 macro AUPRC. The optimized CNN-Large student slightly exceeds that teacher on exact-match accuracy, macro F1, macro AUROC, and macro AUPRC while remaining far smaller than a deep ResNet-style model. This does not prove that distillation is already delivering the gains, because the repository does not yet commit a comparable distilled-student result set; it does show that the current tuned student family is already competitive against its teacher line.
+
+Transfer-learning summaries in Table~\ref{tab:transfer-learning} show that healthy-to-impaired staging helps the CNN family more clearly than the LSTM family. CNN exact-match accuracy improves from 0.465 in healthy pretraining evaluation to 0.585 after impaired-arm finetuning, and finger accuracy rises from 0.760 to 0.800. LSTM exact-match accuracy also improves after finetuning, but its macro AUROC and macro AUPRC decline relative to the healthy pretraining evaluation summary. The transfer takeaway is therefore asymmetric: the staged path looks clearly beneficial for the CNN branch, while the LSTM branch appears more sensitive to domain shift or optimization regime.
+
+\begin{table}[t]
+  \centering
+  \small
+  \caption{Committed healthy-to-impaired transfer-learning summaries. Values are taken directly from the repository summary files.}
+  \label{tab:transfer-learning}
+  \input{tables/transfer_learning.tex}
+\end{table}
+
+Finger-wise scores show that the ranking is not uniform across all outputs. Table~\ref{tab:per-finger-f1} compares the LSTM direct baseline, the GNN direct baseline, and the best optimized CNN student. The GNN remains strongest on the thumb label, the optimized CNN-Large leads on index and little finger, and the LSTM remains slightly strongest on middle and ring finger. This pattern suggests that aggregate CNN gains do not erase all output-specific variation; different inductive biases still matter at the finger level.
+
+\begin{table}[t]
+  \centering
+  \small
+  \caption{Per-finger F1 score by model family. The optimized CNN-Large replaces the legacy direct CNN row for the finger-level comparison. Bold numbers mark the strongest model for each finger.}
   \label{tab:per-finger-f1}
   \input{tables/per_finger_f1.tex}
 \end{table}
@@ -32,8 +54,8 @@ Finger-wise scores show that the ranking is not uniform across all outputs. Tabl
 \begin{figure}[t]
   \centering
   \input{figures/per_finger_f1_plot.tex}
-  \caption{Per-finger F1 comparison derived from the saved metric files. The LSTM wins four of five finger labels, while the GNN is strongest on the thumb class.}
+  \caption{Per-finger F1 comparison derived from the committed metric files. Aggregate CNN gains coexist with output-specific strengths for the LSTM and GNN baselines.}
   \label{fig:per-finger-f1}
 \end{figure}
 
-One additional paper-level update is worth noting. The top-level repository README foregrounds the GNN and CNN comparison, but the repository also contains complete LSTM metric artifacts under `metrics/lstm/`. Including those saved LSTM results materially changes the interpretation of the benchmark, because the best overall system is no longer a simple GNN-versus-CNN choice. At the same time, the open CNN PRs show that this ranking should not be interpreted as final: the repository is still actively evolving toward a lighter-weight distilled branch with stronger deployment-facing evidence.
+The results should nevertheless be read with an evidence boundary in mind. The repository now includes code for teacher-ensemble distillation, per-finger threshold tuning, and CPU latency measurement, but it does not yet commit a mature result bundle produced by those new utilities, nor does it store on-device Raspberry Pi 5 timings. The current paper can therefore support a stronger software-stack narrative than the previous draft, but not a full claim of embedded deployment readiness.

@@ -1,6 +1,6 @@
 # Paper Directory
 
-This directory contains an evidence-constrained research paper for the current state of `psr-pipeline` as inspected on July 11, 2026.
+This directory contains an evidence-constrained arXiv-style software paper for the current state of `psr-pipeline` as inspected on July 18, 2026.
 
 ## Build
 
@@ -18,7 +18,7 @@ cp paper/build/main.pdf paper/paper.pdf
 - `figures/`: committed image and LaTeX figure sources used in the manuscript
 - `tables/`: reusable LaTeX table fragments
 - `references.bib`: bibliography
-- `artifacts/`: writing-process artifacts derived from the `Research-Paper-Writing-Skills` workflow
+- `artifacts/`: writing-process artifacts derived from the `Research-Paper-Writing-Skills` workflow and the relevant K-Dense scientific-writing skills
 - `paper.pdf`: compiled output committed alongside sources
 
 ## Evidence Scope
@@ -27,14 +27,19 @@ The manuscript intentionally limits itself to evidence already present in this r
 
 - preprocessing and tensor pipeline code under `data_processing/`, `adapters/`, and `datasets/`
 - model implementations under `models/`
-- saved benchmark metrics and plots under `metrics/`
-- additional two-stage summaries under `results/README.md`
-- open pull requests `#56` and `#59` for under-review CNN and distillation extensions
+- saved benchmark metrics and plots under `metrics/` and `models/CNN/evaluations/`
+- additional two-stage summaries under `training/tuning/` and `results/README.md`
+- deployment-facing utilities under `training/train_distill.py`, `scripts/eval_thresholds.py`, and `scripts/benchmark_student_latency.py`
 - repository documentation in `README.md`
 
 Claims that would require new experiments, broader baselines, or external clinical validation are softened or explicitly deferred.
 
 ## Figure Notes
 
-- `figures/pipeline_overview.png` is the user-supplied pipeline image used in the paper revision dated July 11, 2026.
-- The pipeline figure reflects the merged benchmark path plus open-PR extension details discussed in the manuscript; it should not be read as evidence that all depicted deployment blocks are already validated in `main`.
+- `figures/pipeline_overview.png` is the user-supplied pipeline image aligned to the current repo and cropped during LaTeX inclusion.
+- The pipeline figure reflects the current software stack and project direction; it should not be read as evidence that all depicted deployment blocks are already validated on hardware.
+
+## Context Notes
+
+- The broader project motivation includes Raspberry Pi 5-served inference for rehabilitation hardware, but this manuscript is intentionally limited to the software portion.
+- The previously attached poster was used only as project-context background; no quantitative claims in the manuscript depend on it.

@@ -3,21 +3,21 @@
 ## 1. Contribution
 
 - **Question:** What new value does this paper provide?
-- **Answer:** It upgrades the repo into a documented benchmark paper, consolidates the missing LSTM evidence, and makes the pipeline reproducible as a manuscript artifact.
+- **Answer:** It upgrades the repo into a technically grounded software paper, replaces the stale open-PR framing with merged evidence, and documents the edge-oriented pipeline in a way that another ML researcher can audit.
 - **Status:** pass
 
 - **Question:** Is the contribution algorithmically novel?
 - **Answer:** No, and the paper does not claim that it is. The contribution is benchmark packaging and evidence-constrained documentation.
 - **Status:** pass
 
-- **Question:** Are open pull request details incorporated without being overstated as merged facts?
-- **Answer:** Yes. The manuscript uses PR \#56 and PR \#59 as under-review extension evidence, cites them directly, and keeps the mainline benchmark tables restricted to committed repository metrics.
+- **Question:** Does the paper correctly reflect the updated repo state rather than the older draft's open-PR state?
+- **Answer:** Yes. The manuscript now treats the CNN refactor, optimization sweep, and distillation utilities as merged software components while keeping unsupported result claims out.
 - **Status:** pass
 
 ## 2. Writing Clarity
 
 - **Question:** Can a technically literate reader reconstruct the workflow from the paper?
-- **Answer:** Yes for ingestion, preprocessing, feature representation, tensor adaptation, model families, and metric outputs; the manuscript intentionally stays close to code-level facts and flags which details come from open PRs.
+- **Answer:** Yes for ingestion, preprocessing, feature representation, tensor adaptation, model families, transfer-learning summaries, and deployment-facing utilities; the manuscript stays close to code-level facts.
 - **Status:** pass
 
 - **Question:** Are terms stable and paragraphs single-purpose?
@@ -27,11 +27,11 @@
 ## 3. Experimental Strength
 
 - **Question:** Are the reported improvements strong enough for a claim of clear method superiority?
-- **Answer:** Only partially. LSTM and GNN exchange wins across metrics, so the paper frames the result as a trade-off instead of a decisive victory.
+- **Answer:** Partially. The optimized CNN-Large artifact is clearly strongest among committed results, but the paper still avoids a broad superiority claim because the benchmark scope remains narrow.
 - **Status:** pass after claim weakening
 
 - **Question:** Do we report failure modes honestly?
-- **Answer:** Yes. The paper explicitly states the absence of ablations, single-dataset scope, uneven artifact maturity across branches, and the fact that deployment blocks in the figure exceed the currently validated benchmark path.
+- **Answer:** Yes. The paper explicitly states the absence of ablations, single-dataset scope, missing distilled-student result bundles, and the lack of on-device Raspberry Pi timing evidence.
 - **Status:** pass
 
 ## 4. Evaluation Completeness
@@ -41,15 +41,15 @@
 - **Status:** needs new experiment
 
 - **Question:** Are all strong baselines covered?
-- **Answer:** The current repo compares LSTM, CNN, and GNN, but not a broader external baseline set.
+- **Answer:** The current repo compares LSTM, GNN, legacy CNN, optimized CNN students, and CNN teachers, but not a broader external baseline set.
 - **Status:** needs new experiment
 
 ## 5. Method Design Soundness
 
 - **Question:** Is the method realistic for practical use?
-- **Answer:** The preprocessing and benchmark workflow are realistic as an engineering starting point, but clinical deployment claims would need additional validation.
+- **Answer:** The preprocessing and benchmark workflow are realistic as an engineering starting point, and the compact CNN sizes strengthen the embedded-software story, but clinical or on-device deployment claims would need additional validation.
 - **Status:** pass with scope limitation
 
 - **Question:** Are there hidden technical risks?
-- **Answer:** The dense GNN graph may scale poorly, and transfer-learning evidence is not yet harmonized with the main benchmark tables.
+- **Answer:** The dense GNN graph may scale poorly, transfer-learning evidence is not yet harmonized with the main benchmark tables, and the distillation utilities have not yet been mirrored by equally complete committed result packs.
 - **Status:** pass after limitation paragraph
