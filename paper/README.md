@@ -1,6 +1,6 @@
 # Paper Directory
 
-This directory contains an evidence-constrained arXiv-style software paper for the current state of `psr-pipeline` as inspected on July 18, 2026.
+This directory contains an evidence-constrained arXiv-style paper for the current state of the PSR research project as inspected on July 19, 2026.
 
 ## Build
 
@@ -23,7 +23,7 @@ cp paper/build/main.pdf paper/paper.pdf
 
 ## Evidence Scope
 
-The manuscript intentionally limits itself to evidence already present in this repository:
+The manuscript intentionally limits itself to evidence already present in the current project artifacts:
 
 - preprocessing and tensor pipeline code under `data_processing/`, `adapters/`, and `datasets/`
 - model implementations under `models/`

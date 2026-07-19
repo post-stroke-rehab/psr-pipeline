@@ -1,11 +1,11 @@
 \section{Results}
 
-The updated repository no longer reads as a simple LSTM-versus-GNN benchmark. Table~\ref{tab:model-comparison} shows four distinct reference points: the historical LSTM, GNN, and CNN direct baselines stored under \texttt{metrics/}, and the strongest merged optimized CNN artifact, Optuna CNN-Large, stored under \texttt{models/CNN/evaluations/}. The optimized CNN-Large model is the strongest committed result bundle overall, exceeding all three historical baselines on exact-match accuracy, finger accuracy except for a negligible margin against CNN-Base, macro F1, macro AUROC, and macro AUPRC.
+The current project evidence no longer reads as a simple LSTM-versus-GNN benchmark. Table~\ref{tab:model-comparison} shows four distinct reference points: the historical LSTM, GNN, and CNN direct baselines stored under \texttt{metrics/}, and the strongest merged optimized CNN artifact, Optuna CNN-Large, stored under \texttt{models/CNN/evaluations/}. The optimized CNN-Large model is the strongest committed result bundle overall, exceeding all three historical baselines on exact-match accuracy, finger accuracy except for a negligible margin against CNN-Base, macro F1, macro AUROC, and macro AUPRC.
 
 \begin{table}[t]
   \centering
   \small
-  \caption{Held-out test performance from the repository metric files. The first three rows are historical direct baselines; the final row is the strongest merged optimized CNN artifact. Bold numbers mark the best score in each column.}
+  \caption{Held-out test performance from the committed project metric files. The first three rows are historical direct baselines; the final row is the strongest merged optimized CNN artifact. Bold numbers mark the best score in each column.}
   \label{tab:model-comparison}
   \input{tables/model_comparison.tex}
 \end{table}
@@ -17,26 +17,26 @@ The updated repository no longer reads as a simple LSTM-versus-GNN benchmark. Ta
   \label{fig:model-comparison}
 \end{figure}
 
-The change from the legacy CNN baseline to the optimized CNN-Large artifact is particularly informative. Exact-match accuracy rises from 0.442 to 0.593, macro F1 from 0.676 to 0.714, macro AUROC from 0.767 to 0.881, and macro AUPRC from 0.764 to 0.812. This is not a minor bookkeeping difference. It shows that once the repository's modular CNN stack, tuned architecture search, and updated evaluation bundle are taken into account, the software story becomes substantially more favorable to compact convolutional models than the older README-era comparison suggested.
+The change from the legacy CNN baseline to the optimized CNN-Large artifact is particularly informative. Exact-match accuracy rises from 0.442 to 0.593, macro F1 from 0.676 to 0.714, macro AUROC from 0.767 to 0.881, and macro AUPRC from 0.764 to 0.812. This is not a minor bookkeeping difference. It shows that once the project's modular CNN stack, tuned architecture search, and updated evaluation bundle are taken into account, the empirical story becomes substantially more favorable to compact convolutional models than the older README-era comparison suggested.
 
-The optimized CNN student sweep in Table~\ref{tab:cnn-sweep} clarifies the deployment-oriented trade-off. CNN-Large is best on exact-match accuracy, macro F1, macro AUROC, and macro AUPRC, while CNN-Base is effectively tied on finger accuracy. At the same time, the Nano and Micro students remain close to the larger models despite much smaller footprints. This is the key edge-computing result in the repository: the compact students do not collapse in quality when the model is pushed into Raspberry Pi-friendly size ranges.
+The optimized CNN student sweep in Table~\ref{tab:cnn-sweep} clarifies the deployment-oriented trade-off. CNN-Large is best on exact-match accuracy, macro F1, macro AUROC, and macro AUPRC, while CNN-Base is effectively tied on finger accuracy. At the same time, the Nano and Micro students remain close to the larger models despite much smaller footprints. This is the key edge-computing result in the current project: the compact students do not collapse in quality when the model is pushed into Raspberry Pi-friendly size ranges.
 
 \begin{table}[t]
   \centering
   \small
-  \caption{Merged CNN student sweep. Parameter counts and INT8 sizes come from the repository CNN README; metrics come from committed evaluation bundles.}
+  \caption{Merged CNN student sweep. Parameter counts and INT8 sizes come from the project CNN README; metrics come from committed evaluation bundles.}
   \label{tab:cnn-sweep}
   \input{tables/cnn_student_sweep.tex}
 \end{table}
 
-Teacher results provide a useful reference for how far the compact students can go without explicit deployment measurements. Among the committed teacher checkpoints, ResNet-152 is strongest with 0.588 exact-match accuracy, 0.698 macro F1, 0.870 macro AUROC, and 0.787 macro AUPRC. The optimized CNN-Large student slightly exceeds that teacher on exact-match accuracy, macro F1, macro AUROC, and macro AUPRC while remaining far smaller than a deep ResNet-style model. This does not prove that distillation is already delivering the gains, because the repository does not yet commit a comparable distilled-student result set; it does show that the current tuned student family is already competitive against its teacher line.
+Teacher results provide a useful reference for how far the compact students can go without explicit deployment measurements. Among the committed teacher checkpoints, ResNet-152 is strongest with 0.588 exact-match accuracy, 0.698 macro F1, 0.870 macro AUROC, and 0.787 macro AUPRC. The optimized CNN-Large student slightly exceeds that teacher on exact-match accuracy, macro F1, macro AUROC, and macro AUPRC while remaining far smaller than a deep ResNet-style model. This does not prove that distillation is already delivering the gains, because the project does not yet commit a comparable distilled-student result set; it does show that the current tuned student family is already competitive against its teacher line.
 
 Transfer-learning summaries in Table~\ref{tab:transfer-learning} show that healthy-to-impaired staging helps the CNN family more clearly than the LSTM family. CNN exact-match accuracy improves from 0.465 in healthy pretraining evaluation to 0.585 after impaired-arm finetuning, and finger accuracy rises from 0.760 to 0.800. LSTM exact-match accuracy also improves after finetuning, but its macro AUROC and macro AUPRC decline relative to the healthy pretraining evaluation summary. The transfer takeaway is therefore asymmetric: the staged path looks clearly beneficial for the CNN branch, while the LSTM branch appears more sensitive to domain shift or optimization regime.
 
 \begin{table}[t]
   \centering
   \small
-  \caption{Committed healthy-to-impaired transfer-learning summaries. Values are taken directly from the repository summary files.}
+  \caption{Committed healthy-to-impaired transfer-learning summaries. Values are taken directly from the project summary files.}
   \label{tab:transfer-learning}
   \input{tables/transfer_learning.tex}
 \end{table}
@@ -58,4 +58,4 @@ Finger-wise scores show that the ranking is not uniform across all outputs. Tabl
   \label{fig:per-finger-f1}
 \end{figure}
 
-The results should nevertheless be read with an evidence boundary in mind. The repository now includes code for teacher-ensemble distillation, per-finger threshold tuning, and CPU latency measurement, but it does not yet commit a mature result bundle produced by those new utilities, nor does it store on-device Raspberry Pi 5 timings. The current paper can therefore support a stronger software-stack narrative than the previous draft, but not a full claim of embedded deployment readiness.
+The results should nevertheless be read with an evidence boundary in mind. The project now includes code for teacher-ensemble distillation, per-finger threshold tuning, and CPU latency measurement, but it does not yet commit a mature result bundle produced by those new utilities, nor does it store on-device Raspberry Pi 5 timings. The current paper can therefore support a stronger research narrative than the previous draft, but not a full claim of embedded deployment readiness.
