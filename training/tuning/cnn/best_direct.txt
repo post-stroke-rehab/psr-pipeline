@@ -1,0 +1,11 @@
+=== CNN Optuna (direct) ===
+trials: 30
+best val finger_accuracy: 0.8213
+best params:
+  cnn_variant: base
+  dropout: 0.45000000000000007
+  lr: 0.00020054282947649357
+  batch_size: 128
+  weight_decay: 1.0072239929233116e-05
+  patience: 15
+  finger0_pos_weight_boost: 1.7000000000000002
