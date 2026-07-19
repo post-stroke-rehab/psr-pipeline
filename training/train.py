@@ -340,39 +340,53 @@ def build_model(cfg: TrainConfig, sample_x: torch.Tensor) -> nn.Module:
         return SEMGFingerPredictor(gcfg)
     
     if name == "cnn":
-        from models.CNN import cnn as cnn_impl
+        from models.CNN.students import (
+            CNN_Nano,
+            CNN_Micro,
+            CNN_Base,
+            CNN_Large,
+            CNN_XLarge,
+        )
 
         if sample_x.dim() != 3:
             raise ValueError(f"CNN expects (N,W,F) before permute. Got {tuple(sample_x.shape)}")
-        in_features = int(sample_x.size(-1))
-        seq_len = int(sample_x.size(1))
 
-        cnn_cfg = cnn_impl.Config(
-            in_channels=in_features,
-            seq_len=seq_len,
-            out_dim=cfg.out_dim,
-            use_adaptive_pool=True,
-            conv4_kernel=5,
+        # After feature_tensor_to_sequences, sample_x is (N, W, C*F).
+        # The CNN students expect Conv1d input (N, in_channels, W).
+        in_channels = int(sample_x.size(-1))
+
+        variants = {
+            "nano": CNN_Nano,
+            "micro": CNN_Micro,
+            "base": CNN_Base,
+            "large": CNN_Large,
+            "xlarge": CNN_XLarge,
+        }
+
+        variant = cfg.cnn_variant.lower().strip()
+        if variant not in variants:
+            raise ValueError(
+                f"Unknown cnn_variant={cfg.cnn_variant!r}. "
+                f"Expected one of {sorted(variants)}."
+            )
+
+        base_cnn = variants[variant](
+            in_channels=in_channels,
+            num_classes=cfg.out_dim,
             dropout=cfg.cnn_dropout,
         )
 
-        base_cnn = cnn_impl.build_model(model_name=cfg.cnn_variant, cfg=cnn_cfg)
-        
-        #current pipeline feeds model (N,W,features) but pytorch Conv1d expect (N,C,L) so W and features are swapped
         class PermuteToChannelsFirst(nn.Module):
-            """Wrap a Conv1d CNN that expects (N, C, L) since our current pipeline provides (N, L, C)."""
+            """Wrap CNN students that expect (N, C, W), while train.py provides (N, W, C)."""
             def __init__(self, backbone: nn.Module):
                 super().__init__()
                 self.backbone = backbone
 
             def forward(self, x: torch.Tensor) -> torch.Tensor:
-                # x: (N, W, F) -> (N, F, W)
                 if x.dim() != 3:
                     raise ValueError(f"CNN wrapper expects 3D tensor (N,W,F). Got {tuple(x.shape)}")
-                x = x.permute(0, 2, 1).contiguous()
-                return self.backbone(x)
+                return self.backbone(x.permute(0, 2, 1).contiguous())
 
-        # wrap so it accepts (N,W,F) 
         return PermuteToChannelsFirst(base_cnn)
 
     raise ValueError(f"Unknown model_name='{cfg.model_name}'. Use 'lstm' or 'gnn' or 'cnn'.")
@@ -570,6 +584,7 @@ def train_loop(
         seed=cfg.seed,
         out_dim=cfg.out_dim,
         arm_split="healthy" if cfg.training_stage == "pretrain" else "impaired",
+        pin_memory=cfg.device.startswith("cuda") and torch.cuda.is_available(),
     )
     train_loader, val_loader, test_loader = make_dataloaders(
         processed_dir=cfg.processed_dir,
