@@ -1,0 +1,12 @@
+=== LSTM Optuna (direct) ===
+trials: 30
+best val finger_accuracy: 0.8250
+best params:
+  hidden1: 192
+  hidden2: 128
+  fc_hidden: 64
+  dropout: 0.45
+  lr: 0.00011085122517311723
+  batch_size: 32
+  weight_decay: 8.61257919259488e-06
+  patience: 25
