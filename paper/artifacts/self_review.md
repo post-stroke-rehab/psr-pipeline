@@ -1,55 +1,37 @@
-# Reviewer-Style Self Review
+# Self Review
 
-## 1. Contribution
+## 1. Does the paper now tell the requested story?
 
-- **Question:** What new value does this paper provide?
-- **Answer:** It upgrades the repo into a technically grounded software paper, replaces the stale open-PR framing with merged evidence, and documents the edge-oriented pipeline in a way that another ML researcher can audit.
-- **Status:** pass
+- **Answer:** Yes. The evaluation begins with three individual model families, LSTM, CNN, and GNN, and only then moves to improvement paths.
 
-- **Question:** Is the contribution algorithmically novel?
-- **Answer:** No, and the paper does not claim that it is. The contribution is benchmark packaging and evidence-constrained documentation.
-- **Status:** pass
+## 2. Is the paper written from a research-project perspective rather than as a repo inventory?
 
-- **Question:** Does the paper correctly reflect the updated repo state rather than the older draft's open-PR state?
-- **Answer:** Yes. The manuscript now treats the CNN refactor, optimization sweep, and distillation utilities as merged software components while keeping unsupported result claims out.
-- **Status:** pass
+- **Answer:** Yes. The framing now centers on a software research framework for post-stroke neurorehabilitation, with the broader hardware goal as context only.
 
-## 2. Writing Clarity
+## 3. Is the literature review materially stronger?
 
-- **Question:** Can a technically literate reader reconstruct the workflow from the paper?
-- **Answer:** Yes for ingestion, preprocessing, feature representation, tensor adaptation, model families, transfer-learning summaries, and deployment-facing utilities; the manuscript stays close to code-level facts.
-- **Status:** pass
+- **Answer:** Yes. The manuscript now covers stroke-specific sEMG studies, systematic reviews, Ninapro, PhysioMio, healthy-data deep models, and transfer learning.
 
-- **Question:** Are terms stable and paragraphs single-purpose?
-- **Answer:** Yes. Core terms (`preprocessing`, `window`, `feature tensor`, `adapter`, `finger accuracy`) are used consistently.
-- **Status:** pass
+## 4. Does the methods section feel technically sound?
 
-## 3. Experimental Strength
+- **Answer:** Yes. The revision adds notation, LSTM/CNN/GNN mathematical background, multilabel loss, and the project-specific distillation objective.
 
-- **Question:** Are the reported improvements strong enough for a claim of clear method superiority?
-- **Answer:** Partially. The optimized CNN-Large artifact is clearly strongest among committed results, but the paper still avoids a broad superiority claim because the benchmark scope remains narrow.
-- **Status:** pass after claim weakening
+## 5. Are the internal comparisons detailed enough?
 
-- **Question:** Do we report failure modes honestly?
-- **Answer:** Yes. The paper explicitly states the absence of ablations, single-dataset scope, missing distilled-student result bundles, and the lack of on-device Raspberry Pi timing evidence.
-- **Status:** pass
+- **Answer:** Yes. The paper now separates direct baselines from the newer CNN student/teacher branch and includes ResNet teacher results from the merged PR~56 path.
 
-## 4. Evaluation Completeness
+## 6. Is transfer learning handled honestly?
 
-- **Question:** Are all key design claims backed by ablations?
-- **Answer:** No. The repo does not currently store a full ablation package, so the paper avoids causal claims about individual modules.
-- **Status:** needs new experiment
+- **Answer:** Yes. The CNN branch is presented as clearly helped by healthy-to-impaired transfer, while the LSTM branch is described as mixed rather than improved.
 
-- **Question:** Are all strong baselines covered?
-- **Answer:** The current repo compares LSTM, GNN, legacy CNN, optimized CNN students, and CNN teachers, but not a broader external baseline set.
-- **Status:** needs new experiment
+## 7. Does the paper overclaim distillation or deployment?
 
-## 5. Method Design Soundness
+- **Answer:** No. Distillation is described as an implemented improvement path, not as a completed benchmark result, and Raspberry Pi deployment remains future work.
 
-- **Question:** Is the method realistic for practical use?
-- **Answer:** The preprocessing and benchmark workflow are realistic as an engineering starting point, and the compact CNN sizes strengthen the embedded-software story, but clinical or on-device deployment claims would need additional validation.
-- **Status:** pass with scope limitation
+## 8. Are external comparisons presented responsibly?
 
-- **Question:** Are there hidden technical risks?
-- **Answer:** The dense GNN graph may scale poorly, transfer-learning evidence is not yet harmonized with the main benchmark tables, and the distillation utilities have not yet been mirrored by equally complete committed result packs.
-- **Status:** pass after limitation paragraph
+- **Answer:** Yes. The literature-context table explicitly warns that datasets, populations, gestures, and label spaces differ, so it is not presented as a strict leaderboard.
+
+## 9. What is still weakest?
+
+- **Answer:** The project still lacks committed distilled-student metrics, committed device-level latency measurements, and broader robustness evidence across sessions and patients.

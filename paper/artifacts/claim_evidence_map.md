@@ -28,8 +28,12 @@ Claim: `The default PhysioMio loading path targets impaired-arm recordings unles
 Evidence: `datasets/loaders.py` (`arm_split="impaired"`, `impaired_only=True`).  
 Status: supported
 
+Claim: `The direct three-family comparison does not have a trivial winner: LSTM leads baseline exact-match accuracy and AUROC, while GNN leads baseline macro F1 and AUPRC.`  
+Evidence: `metrics/lstm/metrics.json`, `metrics/gnn/test/metrics.json`, `metrics/cnn/metrics.json`, `paper/tables/model_comparison.tex`.  
+Status: supported
+
 Claim: `The merged Optuna CNN-Large artifact is the strongest committed benchmark result in the current repository.`  
-Evidence: `models/CNN/evaluations/summary.json`, `models/CNN/evaluations/optuna_large/metrics.json`, compared against `metrics/lstm/metrics.json`, `metrics/gnn/test/metrics.json`, and `metrics/cnn/metrics.json`.  
+Evidence: `models/CNN/evaluations/summary.json`, `models/CNN/evaluations/optuna_large/metrics.json`, compared against `metrics/lstm/metrics.json`, `metrics/gnn/test/metrics.json`, `metrics/cnn/metrics.json`, and teacher metrics under `models/CNN/evaluations/teacher_resnet*/metrics.json`.  
 Status: supported
 
 Claim: `Compact CNN students remain competitive while staying within small INT8 footprints intended for Raspberry Pi 5-class deployment.`  
@@ -42,6 +46,10 @@ Status: supported
 
 Claim: `Healthy-to-impaired transfer learning helps the CNN branch more clearly than the LSTM branch in the committed summaries.`  
 Evidence: `training/tuning/cnn/both_stages_summary.json`, `training/tuning/lstm/both_stages_summary.json`.  
+Status: supported
+
+Claim: `Distillation is implemented as a deployment-facing improvement path, but the repo does not yet store a complete distilled-student benchmark bundle.`  
+Evidence: `training/train_distill.py`, `training/teacher_ensemble.py`, `models/CNN/distillation.py`, absence of committed distilled-student result packs under `models/CNN/evaluations/` and `results/`.  
 Status: supported
 
 Claim: `The repository now includes teacher-ensemble distillation, per-finger threshold tuning, and CPU latency benchmarking utilities.`  

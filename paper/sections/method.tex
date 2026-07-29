@@ -2,7 +2,7 @@
 
 \subsection{Overview}
 
-\repo\ implements the project's modular decoding workflow, which starts from raw multichannel sEMG and gesture labels and ends with either five finger logits or downstream evaluation artifacts. The experimental design is easiest to read as four connected bands: data harmonization and ingestion, signal processing and feature extraction, model fitting, and evaluation or deployment-facing analysis. Figure~\ref{fig:pipeline} summarizes that workflow at the paper level. The figure includes modeling and deployment-oriented blocks that are present in the implementation, but the empirical claims in this paper remain restricted to committed artifacts.
+\repo\ implements the project's modular decoding workflow, which starts from raw multichannel sEMG and gesture labels and ends with either five-finger logits or downstream evaluation artifacts. The experimental design is easiest to read as four connected bands: data harmonization and ingestion, signal processing and feature extraction, model fitting, and evaluation or deployment-facing analysis. Figure~\ref{fig:pipeline} summarizes that workflow at the paper level. The figure includes modeling and deployment-oriented blocks that are present in the implementation, but the empirical claims in this paper remain restricted to committed artifacts.
 
 \begin{figure}[t]
   \centering
@@ -11,9 +11,11 @@
   \label{fig:pipeline}
 \end{figure}
 
+For notation, let a pre-segmented recording be $X \in \mathbb{R}^{T \times C}$, where $T$ is the number of raw time samples and $C=64$ is the channel count under the \physiomio\ path. After preprocessing and windowing, the project extracts a feature tensor $\mathcal{X} \in \mathbb{R}^{C \times W \times F}$, where $W$ is the number of windows and $F=12$ is the number of handcrafted descriptors per channel-window pair. Each sample is paired with a multilabel target vector $y \in \{0,1\}^5$ indicating intended activation of thumb, index, middle, ring, and little finger.
+
 \subsection{Data harmonization and ingestion}
 
-The project loader builds processed datasets directly from raw PhysioMio parquet files when cached tensors are missing. It searches the raw data tree, groups files by patient, aligns contiguous stretches of the same \texttt{movement\_type}, maps each label to a five-bit finger target, discards segments shorter than 200 samples, and then applies the full preprocessing pipeline to each usable segment. These ingest operations define the effective task boundary: which arm is selected, how gestures become multilabel targets, and whether repeated data from the same patient can leak across train and test.
+The project loader builds processed datasets directly from raw \physiomio\ parquet files when cached tensors are missing. It searches the raw data tree, groups files by patient, aligns contiguous stretches of the same \texttt{movement\_type}, maps each label to a five-bit finger target, discards segments shorter than 200 samples, and then applies the full preprocessing pipeline to each usable segment. These ingest operations define the effective task boundary: which arm is selected, how gestures become multilabel targets, and whether repeated data from the same patient can leak across train and test.
 
 The default configuration uses PhysioMio recordings sampled at 2000 Hz, selects the impaired arm unless the user explicitly changes the arm split, and performs a deterministic patient-level 70/10/20 train/validation/test split. Processed samples are padded to a dataset-wide maximum window count so they can be stacked into tensors. The resulting dataset is therefore not just a collection of windows; it is a patient-split, segment-level benchmark derived from raw multichannel recordings.
 
@@ -31,24 +33,82 @@ Each channel-window pair is summarized by twelve handcrafted descriptors spannin
 
 \subsection{Tensor formatting and shared adapter}
 
-The project standardizes cross-model comparison with one shared adapter. It transforms $(C, W, F)$ or $(N, C, W, F)$ tensors into $(N, W, C \times F)$ sequences, where windows act as time steps and all channel features are concatenated into one vector per step. This interface decision is small but important because it lets recurrent, convolutional, and graph-based predictors share the same derived representation without duplicating preprocessing code.
+The project standardizes cross-model comparison with one shared adapter. It transforms $(C, W, F)$ or $(N, C, W, F)$ tensors into $(N, W, C \times F)$ sequences, where windows act as time steps and all channel features are concatenated into one vector per step. For a single sample, the adapted sequence can be written as
+\[
+S = \left[s_1, \ldots, s_W\right]^\top \in \mathbb{R}^{W \times d},
+\qquad
+s_w = \mathrm{vec}\!\left(\mathcal{X}_{:,w,:}\right),
+\qquad
+d = C F = 768.
+\]
+This interface decision is small but important because it lets recurrent, convolutional, and graph-based predictors share the same derived representation without duplicating preprocessing code.
 
 For the CNN branch, the adapted tensor is subsequently permuted to a channels-first layout. The merged CNN stack treats the $64 \times 12$ channel-feature grid as 768 input channels for temporal \texttt{Conv1d} layers, which preserves a common upstream pipeline while letting the convolutional branch operate as a lightweight sequence model over window order.
 
 \subsection{Predictor families}
 
-The LSTM branch applies two stacked recurrent layers with hidden sizes 128 and 256, followed by a 128-unit fully connected layer and dropout before five output logits. This branch emphasizes temporal accumulation across windows and serves as a strong sequence baseline for the direct benchmark.
+The LSTM branch applies two stacked recurrent layers with hidden sizes 128 and 256, followed by a 128-unit fully connected layer and dropout before five output logits. Given adapted sequence input $s_t$, the recurrent dynamics follow the standard LSTM update
+\[
+\begin{aligned}
+i_t &= \sigma(W_i s_t + U_i h_{t-1} + b_i), \\
+f_t &= \sigma(W_f s_t + U_f h_{t-1} + b_f), \\
+o_t &= \sigma(W_o s_t + U_o h_{t-1} + b_o), \\
+\tilde{c}_t &= \tanh(W_c s_t + U_c h_{t-1} + b_c), \\
+c_t &= f_t \odot c_{t-1} + i_t \odot \tilde{c}_t, \\
+h_t &= o_t \odot \tanh(c_t),
+\end{aligned}
+\]
+and the project uses the final hidden state from the second recurrent layer for classification. This branch emphasizes temporal accumulation across windows and serves as the main sequential baseline for the direct benchmark.
 
-The GNN branch interprets each time window as a node in a graph. The implementation supports GCN, GraphSAGE, and GAT operators~\citep{kipf2017gcn,hamilton2017graphsage,velickovic2018gat}, and the benchmarked path constructs a dense graph over windows within each sample before graph-level pooling and readout. This branch injects an explicit structural prior: windows are related observations rather than only a flat sequence.
+The GNN branch interprets each time window as a node in a graph. The implementation supports GCN, GraphSAGE, and GAT operators~\citep{kipf2017gcn,hamilton2017graphsage,velickovic2018gat}, and the benchmarked path constructs a dense graph over windows within each sample before graph-level pooling and readout. At a generic level, the node update can be written as
+\[
+h_i^{(\ell+1)} =
+\psi_\ell\!\left(
+h_i^{(\ell)},
+\operatorname*{AGG}_{j \in \mathcal{N}(i)}
+\phi_\ell\!\left(h_i^{(\ell)}, h_j^{(\ell)}\right)
+\right),
+\]
+followed by graph pooling
+\[
+g = \operatorname*{POOL}_{i=1}^{W} h_i^{(L)}
+\]
+and a multilabel readout head. This branch injects an explicit structural prior: windows are related observations rather than only a flat sequence.
 
-The CNN branch is the most elaborate family in the current project. It includes five student variants ranging from Nano to XLarge, each built around a cheap 1$\times$1 projection, temporal convolution blocks, adaptive pooling, and a small fully connected head. The accompanying README reports approximate footprints from 54K parameters and 53 KB INT8 for Nano up to 1.62M parameters and 1.58 MB INT8 for XLarge, while the teacher family includes 1D ResNet-50, ResNet-101, and ResNet-152 variants. The key methodological idea is that all of these models sit behind the same input adaptation pathway, so increasing model capacity does not require changing ingestion or preprocessing logic.
+The CNN branch is the most elaborate family in the current project. It includes five student variants ranging from Nano to XLarge, each built around a cheap $1 \times 1$ projection, temporal convolution blocks, adaptive pooling, and a small fully connected head. If the channels-first representation is denoted by $\hat{S} \in \mathbb{R}^{d \times W}$, the student stack can be summarized as
+\[
+H^{(0)} = \rho\!\left(\operatorname{BN}(W_p * \hat{S} + b_p)\right),
+\qquad
+H^{(\ell+1)} = \rho\!\left(\operatorname{BN}(W_\ell * H^{(\ell)} + b_\ell)\right),
+\]
+where $*$ denotes 1D convolution over window order and $\rho$ is a ReLU nonlinearity. Adaptive pooling then compresses the temporal axis before a small multilayer perceptron produces the five logits. The accompanying README reports approximate footprints from 54K parameters and 53 KB INT8 for Nano up to 1.62M parameters and 1.58 MB INT8 for XLarge, while the teacher family includes 1D ResNet-50, ResNet-101, and ResNet-152 variants. The key methodological idea is that all of these models sit behind the same input adaptation pathway, so increasing model capacity does not require changing ingestion or preprocessing logic.
 
 \subsection{Training, tuning, and evaluation protocol}
 
-The training utilities unify optimization and reporting across model families. The current implementation uses binary cross-entropy with logits for five-label prediction, Adam-based optimization, plateau-triggered learning-rate reduction, early stopping, checkpointing, and saved metric curves. Evaluation reports exact-match accuracy, finger-level averaged accuracy, macro precision, macro recall, macro F1, macro AUROC, and macro AUPRC. The metrics module also stores per-finger scores and task-level curve data, which enables both aggregate and finger-wise analysis after training.
+The training utilities unify optimization and reporting across model families. The current implementation uses binary cross-entropy with logits for five-label prediction, Adam-based optimization, plateau-triggered learning-rate reduction, early stopping, checkpointing, and saved metric curves. For logits $z \in \mathbb{R}^5$, the base multilabel objective is
+\[
+\mathcal{L}_{\mathrm{BCE}}
+=
+-\frac{1}{5}
+\sum_{k=1}^{5}
+\left[
+y_k \log \sigma(z_k)
++ (1-y_k) \log \left(1-\sigma(z_k)\right)
+\right].
+\]
+Evaluation reports exact-match accuracy, finger-level averaged accuracy, macro precision, macro recall, macro F1, macro AUROC, and macro AUPRC. The metrics module also stores per-finger scores and task-level curve data, which enables both aggregate and finger-wise analysis after training.
 
-Hyperparameter optimization is a first-class component rather than an afterthought. The merged CNN stack uses Optuna to search architecture and training choices for each student size, and its score combines validation accuracy with a latency-based penalty relative to a baseline timing reference~\citep{akiba2019optuna}. Trial-level early stopping is used during search so poorly performing candidates terminate quickly. The project also contains two deployment-oriented utilities: a teacher-ensemble distillation path that can fuse multiple teachers either equally or by per-finger validation performance, and a threshold-tuning script that sweeps per-finger thresholds over a validation grid to maximize F1. A separate latency benchmark reports mean, median, and 95th-percentile inference time on a chosen device. Together, these components extend the work beyond a pure offline benchmark and toward a practical edge-oriented study.
+Hyperparameter optimization is a first-class component rather than an afterthought. The merged CNN stack uses Optuna to search architecture and training choices for each student size, and its score combines validation accuracy with a latency-based penalty relative to a baseline timing reference~\citep{akiba2019optuna}. Trial-level early stopping is used during search so poorly performing candidates terminate quickly. The project also contains two deployment-oriented utilities: a teacher-ensemble distillation path that can fuse multiple teachers either equally or by per-finger validation performance, and a threshold-tuning script that sweeps per-finger thresholds over a validation grid to maximize F1. For multilabel distillation, the implemented loss blends the hard target term with a temperature-scaled soft target from the teacher,
+\[
+\mathcal{L}_{\mathrm{KD}}
+=
+\alpha \, \mathcal{L}_{\mathrm{BCE}}(z_s, y)
++
+(1-\alpha) T^2
+\operatorname{BCELogits}\!\left(\frac{z_s}{T}, \sigma\!\left(\frac{z_t}{T}\right)\right),
+\]
+where $z_s$ and $z_t$ are student and teacher logits, $T$ is the distillation temperature, and $\alpha$ controls the hard-soft balance. A separate latency benchmark reports mean, median, and 95th-percentile inference time on a chosen device. Together, these components extend the work beyond a pure offline benchmark and toward a practical edge-oriented study.
 
 \subsection{Transfer-learning path}
 
-In addition to direct impaired-arm benchmarks, the project stores two-stage summaries for CNN and LSTM models that pretrain on healthy-arm data and finetune on impaired-arm data. These artifacts matter for post-stroke applications because impaired-arm data are often scarcer and harder to collect than healthy data. Although the project does not yet harmonize every transfer run into the same directory structure as the direct benchmark, the committed summaries are sufficient to study whether the two-stage path helps each model family.
+In addition to direct impaired-arm benchmarks, the project stores two-stage summaries for CNN and LSTM models that pretrain on healthy-arm data and finetune on impaired-arm data. This procedure preserves the same task definition and objective while changing the source domain from healthy to impaired-arm recordings. These artifacts matter for post-stroke applications because impaired-arm data are often scarcer and harder to collect than healthy data. Although the project does not yet harmonize every transfer run into the same directory structure as the direct benchmark, the committed summaries are sufficient to study whether the two-stage path helps each model family.

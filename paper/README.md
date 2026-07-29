@@ -1,6 +1,6 @@
 # Paper Directory
 
-This directory contains an evidence-constrained arXiv-style paper for the current state of the PSR research project as inspected on July 19, 2026.
+This directory contains an evidence-constrained arXiv-style paper for the current state of the PSR research project as inspected on Tuesday, July 28, 2026.
 
 ## Build
 
@@ -18,7 +18,7 @@ cp paper/build/main.pdf paper/paper.pdf
 - `figures/`: committed image and LaTeX figure sources used in the manuscript
 - `tables/`: reusable LaTeX table fragments
 - `references.bib`: bibliography
-- `artifacts/`: writing-process artifacts derived from the `Research-Paper-Writing-Skills` workflow and the relevant K-Dense scientific-writing skills
+- `artifacts/`: writing-process artifacts derived from the Master-cai workflow and the referenced K-Dense literature-review / scientific-writing guidance
 - `paper.pdf`: compiled output committed alongside sources
 
 ## Evidence Scope
@@ -31,12 +31,14 @@ The manuscript intentionally limits itself to evidence already present in the cu
 - additional two-stage summaries under `training/tuning/` and `results/README.md`
 - deployment-facing utilities under `training/train_distill.py`, `scripts/eval_thresholds.py`, and `scripts/benchmark_student_latency.py`
 - repository documentation in `README.md`
+- primary-source literature consulted on July 28, 2026 and logged in `artifacts/literature_search_log.md`
 
 Claims that would require new experiments, broader baselines, or external clinical validation are softened or explicitly deferred.
 
 ## Figure Notes
 
 - `figures/pipeline_overview.png` is the user-supplied pipeline image aligned to the current repo and cropped during LaTeX inclusion.
+- `figures/model_comparison_plot.tex` and `figures/per_finger_f1_plot.tex` are manuscript-used LaTeX figures derived from committed metric files.
 - The pipeline figure reflects the current software stack and project direction; it should not be read as evidence that all depicted deployment blocks are already validated on hardware.
 
 ## Context Notes

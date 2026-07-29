@@ -2,61 +2,62 @@
 
 ## Abstract
 
-- **Paragraph 1 topic:** the paper documents the software portion of an edge-oriented post-stroke sEMG decoding stack.
-- **Support points:** reproducibility problem, pipeline modules, strongest merged CNN results, deployment-oriented utilities, scope limitation.
+- **Paragraph topic:** software research project for post-stroke finger-intent decoding, with baseline families first and improvement paths second.
 
 ## Introduction
 
-- **Paragraph 1 topic:** finger-intent decoding matters for post-stroke rehabilitation and embedded assistive systems.
-- **Paragraph 2 topic:** the central challenge is reproducible end-to-end software, not just classifier selection.
-- **Paragraph 3 topic:** the updated repository now contains a fuller stack including optimized CNNs, transfer summaries, and deployment utilities.
-- **Paragraph 4 topic:** the paper is a systems manuscript rather than an algorithmic novelty claim.
-- **Paragraph 5 topic:** the manuscript contributions are pipeline documentation, consolidated evidence, deployment-context framing, and honest scope boundaries.
+- **Paragraph 1 topic:** finger-intent decoding is the software bridge between stroke-rehab motivation and assistive hardware.
+- **Paragraph 2 topic:** reproducibility requires stable preprocessing, labeling, and evaluation, not just a classifier.
+- **Paragraph 3 topic:** the current codebase now supports direct baselines, improved CNNs, transfer learning, and deployment utilities.
+- **Paragraph 4 topic:** the manuscript is a research-project paper, not a novel-architecture claim.
+- **Paragraph 5 topic:** explicit study contributions and evidence boundaries.
 
 ## Related Work
 
-- **Paragraph 1 topic:** stroke-rehabilitation sEMG work links clinical relevance to reliable signal interpretation.
-- **Paragraph 2 topic:** gesture-recognition surveys emphasize preprocessing, representation, and real-time constraints.
-- **Paragraph 3 topic:** LSTM, CNN, and GNN families provide complementary inductive biases for windowed sEMG.
-- **Paragraph 4 topic:** distillation and hyperparameter optimization matter because this paper is about deployable software, not only offline accuracy.
+- **Paragraph 1 topic:** rehabilitation value depends on the whole sensing-and-decoding stack.
+- **Paragraph 2 topic:** Ninapro and PhysioMio define very different benchmark regimes.
+- **Paragraph 3 topic:** prior stroke studies show promise but remain small and heterogeneous.
+- **Paragraph 4 topic:** deep models and healthy-dataset results provide context but are not directly comparable.
+- **Paragraph 5 topic:** transfer learning is now one of the most relevant directions for stroke-oriented sEMG.
+- **Paragraph 6 topic:** distillation and Optuna matter because deployment constraints are part of the project.
 
 ## Method
 
-- **Overview paragraph topic:** the method is a four-band software stack from ingestion through deployment-facing analysis.
-- **Ingestion paragraph topics:** label mapping, impaired-arm defaults, patient-level splits, and padded tensor caching define the benchmark.
-- **Preprocessing paragraph topics:** band-pass filtering, wavelet denoising, and short overlapping windows are fixed in code.
-- **Representation paragraph topic:** 12 handcrafted descriptors create a stable feature tensor with guarded spectral statistics.
-- **Adapter paragraph topics:** a shared sequence adapter standardizes cross-model comparison, and the CNN branch reshapes that sequence for Conv1d input.
-- **Predictor paragraph topics:** LSTM, GNN, and CNN families express different temporal and structural priors under one upstream pipeline.
-- **Training paragraph topic:** loss functions, metrics, Optuna tuning, threshold search, distillation, and latency benchmarking define the practical workflow.
-- **Transfer paragraph topic:** healthy-to-impaired staging is an explicit part of the repository's experimental surface.
+- **Overview paragraph topic:** four-band pipeline with explicit notation.
+- **Ingestion paragraph topic:** patient-grouped PhysioMio ingestion and five-finger label mapping.
+- **Preprocessing paragraph topic:** Butterworth filtering, wavelet denoising, and overlapping windows.
+- **Feature paragraph topic:** twelve handcrafted features define the shared representation.
+- **Adapter paragraph topic:** one tensor pathway supports all model families.
+- **Predictor paragraph topic:** LSTM, GNN, and CNN equations encode different priors.
+- **Training paragraph topic:** multilabel BCE, Optuna, thresholding, latency, and distillation.
+- **Transfer paragraph topic:** healthy-to-impaired pretraining/finetuning path.
 
 ## Experiments
 
-- **Dataset paragraph topic:** processed PhysioMio tensors are built from contiguous labeled segments.
-- **Split paragraph topic:** the benchmark uses patient-level 70/10/20 partitioning and defaults to impaired-arm recordings.
-- **Scope paragraph topics:** direct metrics, auxiliary summaries, and code-only utilities are treated as distinct evidence tiers.
-- **Protocol paragraph topic:** all claims are tied to committed repository artifacts rather than new unpublished experiments.
+- **Paragraph 1 topic:** patient-level impaired-arm split.
+- **Paragraph 2 topic:** three evidence tiers and historical-versus-new artifact organization.
+- **Paragraph 3 topic:** evaluation is intentionally baseline-first, then improvement paths.
 
 ## Results
 
-- **Paragraph 1 topic:** the optimized CNN-Large artifact is now the strongest committed benchmark result.
-- **Paragraph 2 topic:** the gap from legacy CNN to optimized CNN-Large shows how much the merged CNN stack changed the repository story.
-- **Paragraph 3 topic:** the CNN student sweep shows that compact models remain competitive at small INT8 footprints.
-- **Paragraph 4 topic:** teacher evaluations show that a tuned student can rival or exceed deeper reference models.
-- **Paragraph 5 topic:** transfer-learning evidence helps CNN more clearly than LSTM.
-- **Paragraph 6 topic:** per-finger results show that aggregate improvements do not erase finger-specific trade-offs.
-- **Paragraph 7 topic:** deployment utilities are present, but their evidence is not yet complete enough for full hardware claims.
+- **Paragraph 1 topic:** direct LSTM/CNN/GNN baselines show complementary strengths.
+- **Paragraph 2 topic:** optimized CNN students and ResNet teachers shift the frontier.
+- **Paragraph 3 topic:** compact students stay competitive despite small size.
+- **Paragraph 4 topic:** transfer learning helps CNN but not LSTM consistently.
+- **Paragraph 5 topic:** distillation is implemented but not yet a complete empirical result.
+- **Paragraph 6 topic:** finger-level behavior remains architecture-dependent.
+- **Paragraph 7 topic:** external literature context should be read carefully because tasks differ.
 
 ## Discussion
 
-- **Paragraph 1 topic:** the repository now qualifies as a coherent software stack rather than a loose experiment collection.
-- **Paragraph 2 topic:** optimized CNN students materially shift the benchmark frontier.
-- **Paragraph 3 topic:** transfer learning is a credible direction, especially for CNNs.
-- **Paragraph 4 topic:** deployment-oriented code exists, but artifact completeness still lags the benchmark core.
-- **Paragraph 5 topic:** the remaining limitations define the next empirical milestone for the project.
+- **Paragraph 1 topic:** the repo now functions as a credible software research framework.
+- **Paragraph 2 topic:** the paper's first half remains a genuine three-family comparison.
+- **Paragraph 3 topic:** healthy-to-impaired transfer is a real direction, especially for CNNs.
+- **Paragraph 4 topic:** deployment-facing utilities exist, but deployment evidence is incomplete.
+- **Paragraph 5 topic:** limitations.
+- **Paragraph 6 topic:** next milestones.
 
 ## Conclusion
 
-- **Paragraph 1 topic:** restate the software-stack contribution and the headline CNN result.
-- **Paragraph 2 topic:** state that the next step is better evidence, especially distilled-student and Raspberry Pi validation.
+- **Paragraph 1 topic:** restate the software research contribution.
+- **Paragraph 2 topic:** next evidence should come from distilled-student and Raspberry Pi validation.

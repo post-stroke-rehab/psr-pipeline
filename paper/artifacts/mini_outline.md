@@ -1,10 +1,10 @@
 # Mini Outline
 
-- **Abstract:** summarize the software-only scope, the edge-oriented motivation, the full pipeline, the strongest merged CNN benchmark results, and the remaining deployment evidence gap.
-- **Introduction:** motivate post-stroke finger-intent decoding for rehabilitation hardware, explain why reproducible software stacks matter, and define the paper's contribution as an arXiv-ready systems manuscript.
-- **Related Work:** connect stroke-rehabilitation sEMG literature to gesture-recognition surveys, temporal models, graph models, and deployment-aware compression.
-- **Method:** document ingestion, preprocessing, feature extraction, tensor adaptation, LSTM/GNN/CNN families, transfer-learning support, and deployment-facing utilities.
-- **Experiments:** describe patient-level splits, evidence tiers, evaluation metrics, and the paper's evidence-constrained reporting policy.
-- **Results:** show that optimized CNN students now lead the committed benchmark, summarize the student sweep, discuss teacher and transfer-learning evidence, and compare per-finger behavior.
-- **Discussion:** interpret the repository's updated software contribution, explain what the results say about edge-oriented modeling, and state the most important missing evidence.
-- **Conclusion:** restate the repository-level contribution and point to distilled-student and Raspberry Pi validation as the next evidence milestone.
+- **Abstract:** state the software-only scope, baseline-three-model story, strongest CNN result, transfer asymmetry, and distillation evidence boundary.
+- **Introduction:** frame the manuscript as the software research layer of a broader neurorehabilitation project and state the study-level contributions.
+- **Related Work:** cover post-stroke sEMG rehab, dataset context (Ninapro and PhysioMio), prior stroke decoding studies, deep models, and transfer learning.
+- **Method:** formalize notation, preprocessing, shared feature tensor, LSTM/CNN/GNN mathematics, multilabel loss, and the implemented transfer/distillation paths.
+- **Experiments:** describe patient-level impaired-arm benchmarking, evidence tiers, and why the evaluation is organized as baseline models first and improvement paths second.
+- **Results:** present LSTM/CNN/GNN direct baselines first, then CNN student/teacher improvements, then transfer learning and distillation readiness, then finger-wise and literature positioning.
+- **Discussion:** explain what the software stack now proves, what transfer learning teaches, and what deployment evidence is still missing.
+- **Conclusion:** restate the software research contribution and identify distilled-student evaluation plus Raspberry Pi validation as the next evidence milestones.

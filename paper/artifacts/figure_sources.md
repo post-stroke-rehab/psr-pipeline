@@ -5,12 +5,17 @@
 - Source basis: user-supplied pipeline image committed as `figures/pipeline_overview.png`, cross-checked against `README.md`, `datasets/loaders.py`, `data_processing/preprocess_config.py`, `adapters/feature_to_sequence.py`, `models/CNN/README.md`, `training/train_distill.py`, `scripts/eval_thresholds.py`, and `scripts/benchmark_student_latency.py`
 - Construction: supplied image committed in the paper assets and cropped at LaTeX include time to emphasize the pipeline content and suppress excess margins
 
-## Figure 2 and Table 1: Model Comparison
+## Table 1: Direct Model Comparison
 
-- Numeric source: `metrics/lstm/metrics.json`, `metrics/gnn/test/metrics.json`, `metrics/cnn/metrics.json`, `models/CNN/evaluations/optuna_large/metrics.json`
-- Construction: manually transcribed into `tables/model_comparison.tex` and `figures/model_comparison_plot.tex`
+- Numeric source: `metrics/lstm/metrics.json`, `metrics/gnn/test/metrics.json`, `metrics/cnn/metrics.json`
+- Construction: manually transcribed into `tables/model_comparison.tex`
 
-## Table 2: CNN Student Sweep
+## Figure 2: Aggregate Metric Plot
+
+- Numeric source: `metrics/lstm/metrics.json`, `metrics/gnn/test/metrics.json`, `metrics/cnn/metrics.json`, `models/CNN/evaluations/teacher_resnet152/metrics.json`, `models/CNN/evaluations/optuna_large/metrics.json`
+- Construction: manually transcribed into `figures/model_comparison_plot.tex`
+
+## Table 2: CNN Family Comparison
 
 - Numeric source: `models/CNN/README.md`, `models/CNN/evaluations/summary.json`, and per-model metrics under `models/CNN/evaluations/`
 - Construction: manually transcribed into `tables/cnn_student_sweep.tex`
@@ -20,10 +25,15 @@
 - Numeric source: `training/tuning/cnn/both_stages_summary.json`, `training/tuning/lstm/both_stages_summary.json`
 - Construction: manually transcribed into `tables/transfer_learning.tex`
 
-## Figure 3 and Table 4: Per-Finger F1
+## Table 4 and Figure 3: Per-Finger F1
 
 - Numeric source: `per_finger.*.f1` fields in `metrics/lstm/metrics.json`, `metrics/gnn/test/metrics.json`, and `models/CNN/evaluations/optuna_large/metrics.json`
 - Construction: manually transcribed into `tables/per_finger_f1.tex` and `figures/per_finger_f1_plot.tex`
+
+## Table 5: Literature Context
+
+- Source basis: primary-source literature consulted on July 28, 2026 and logged in `artifacts/literature_search_log.md`
+- Construction: manually summarized into `tables/literature_context.tex` with an explicit comparability caveat in the caption
 
 ## Textual Claims
 
