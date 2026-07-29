@@ -28,7 +28,7 @@ Claim: `The default PhysioMio loading path targets impaired-arm recordings unles
 Evidence: `datasets/loaders.py` (`arm_split="impaired"`, `impaired_only=True`).
 Status: supported
 
-Claim: `The direct three-family comparison does not have a trivial winner: LSTM leads baseline exact-match accuracy and AUROC, while GNN leads baseline macro F1 and AUPRC.`
+Claim: `The direct three-family comparison does not have a trivial winner: LSTM leads baseline subset accuracy and AUROC, while GNN leads baseline macro F1 and AUPRC.`
 Evidence: `metrics/lstm/metrics.json`, `metrics/gnn/test/metrics.json`, `metrics/cnn/metrics.json`, `paper/tables/model_comparison.tex`.
 Status: supported
 

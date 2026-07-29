@@ -19,6 +19,7 @@ cp paper/build/main.pdf paper/paper.pdf
 - `tables/`: reusable LaTeX table fragments
 - `references.bib`: bibliography
 - `artifacts/`: writing-process artifacts derived from the Master-cai workflow and the referenced K-Dense literature-review / scientific-writing guidance
+- `artifacts/reviewer_response.md`: summary of accepted and deferred peer-review-driven manuscript revisions
 - `paper.pdf`: compiled output committed alongside sources
 
 ## Evidence Scope
