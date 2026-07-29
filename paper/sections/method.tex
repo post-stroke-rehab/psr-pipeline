@@ -2,7 +2,7 @@
 
 \subsection{Overview}
 
-\repo\ defines a modular decoding workflow from multichannel sEMG and gesture annotations to five-finger prediction logits. The pipeline contains four stages: data harmonization, signal processing, model inference, and evaluation or deployment analysis. Figure~\ref{fig:pipeline} summarizes the workflow used throughout the study.
+This project defines a modular decoding workflow from multichannel sEMG and gesture annotations to five-finger prediction logits. The pipeline contains four stages: data harmonization, signal processing, model inference, and evaluation or deployment analysis. Figure~\ref{fig:pipeline} summarizes the workflow used throughout the study.
 
 \begin{figure}[t]
   \centering
@@ -15,7 +15,7 @@ For notation, let a pre-segmented recording be $X \in \mathbb{R}^{T \times C}$, 
 
 \subsection{Data harmonization and ingestion}
 
-\repo\ builds processed datasets directly from raw \physiomio\ parquet files. The loader searches the raw data tree, groups files by patient, aligns contiguous stretches of the same \texttt{movement\_type}, maps each label to a five-bit finger target, discards segments shorter than 200 samples, and applies the preprocessing pipeline to each usable segment. This converts gesture-level clinical recordings into segment-level multilabel examples.
+The implementation builds processed datasets directly from raw \physiomio\ parquet files. The loader searches the raw data tree, groups files by patient, aligns contiguous stretches of the same \texttt{movement\_type}, maps each label to a five-bit finger target, discards segments shorter than 200 samples, and applies the preprocessing pipeline to each usable segment. This converts gesture-level clinical recordings into segment-level multilabel examples.
 
 The default configuration uses \physiomio\ recordings sampled at 2000 Hz and selects the impaired arm. Patients are partitioned into deterministic 70/10/20 train/validation/test splits, so samples from the same patient do not appear in multiple partitions. Processed samples are padded to a dataset-wide maximum window count for batched tensor operations.
 

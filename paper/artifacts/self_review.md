@@ -4,7 +4,7 @@
 
 - **Answer:** Yes. The evaluation begins with three individual model families, LSTM, CNN, and GNN, and only then moves to improvement paths.
 
-## 2. Is the paper written from a research-project perspective rather than as a repo inventory?
+## 2. Is the paper written from a research-project perspective rather than as a repository inventory?
 
 - **Answer:** Yes. The framing now centers on a software research framework for post-stroke neurorehabilitation, with the broader hardware goal as context only.
 

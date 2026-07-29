@@ -37,7 +37,7 @@ Claims that would require new experiments, broader baselines, or external clinic
 
 ## Figure Notes
 
-- `figures/pipeline_overview.png` is the user-supplied pipeline image aligned to the current repo and cropped during LaTeX inclusion.
+- `figures/pipeline_overview.png` is the user-supplied pipeline image aligned to the current project and cropped during LaTeX inclusion.
 - `figures/model_comparison_plot.tex` and `figures/per_finger_f1_plot.tex` are manuscript-used LaTeX figures derived from committed metric files.
 - The pipeline figure reflects the current software stack and project direction; it should not be read as evidence that all depicted deployment blocks are already validated on hardware.
 

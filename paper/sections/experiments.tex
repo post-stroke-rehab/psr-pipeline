@@ -2,7 +2,7 @@
 
 \subsection{Dataset and split construction}
 
-All experiments use the \physiomio\ processing path implemented in \repo~\citep{physiomioData2026,psrrepo2026}. The dataset construction step extracts contiguous movement segments from raw parquet recordings, maps gesture labels to five-bit finger targets, preprocesses each segment, and stores processed tensors as PyTorch split files.
+All experiments use the \physiomio\ processing path implemented for this project~\citep{physiomioData2026,psrrepo2026}. The dataset construction step extracts contiguous movement segments from raw parquet recordings, maps gesture labels to five-bit finger targets, preprocesses each segment, and stores processed tensors as PyTorch split files.
 
 Patients are shuffled with a fixed seed and divided into 70\% train, 10\% validation, and 20\% test partitions. The main benchmark uses impaired-arm recordings. The transfer-learning experiments use healthy-arm recordings for pretraining and impaired-arm recordings for finetuning.
 

@@ -50,7 +50,7 @@
 
 ## Discussion
 
-- **Paragraph 1 topic:** the repo now functions as a credible software research framework.
+- **Paragraph 1 topic:** the project now functions as a credible software research framework.
 - **Paragraph 2 topic:** the paper's first half remains a genuine three-family comparison.
 - **Paragraph 3 topic:** healthy-to-impaired transfer is a real direction, especially for CNNs.
 - **Paragraph 4 topic:** deployment-facing utilities exist, but deployment evidence is incomplete.
