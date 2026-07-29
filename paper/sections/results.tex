@@ -23,17 +23,17 @@ The baseline comparison suggests that temporal recurrence and graph aggregation 
 
 \subsection{Performance-improvement path: optimized CNN students and ResNet teachers}
 
-Table~\ref{tab:cnn-sweep} evaluates the optimized CNN student family together with the internal ResNet teacher models. Relative to the direct CNN baseline, the optimized students improve every major aggregate metric. The strongest student, CNN-Large, reaches 0.593 exact-match accuracy, 0.798 finger accuracy, 0.714 macro F1, 0.881 macro AUROC, and 0.812 macro AUPRC.
+Table~\ref{tab:cnn-sweep} evaluates the optimized CNN student family together with the internal ResNet teacher models. Relative to the direct CNN baseline, the optimized students improve every major aggregate metric. The strongest accuracy model is CNN-Large, which reaches 0.593 exact-match accuracy, 0.798 finger accuracy, 0.714 macro F1, 0.881 macro AUROC, and 0.812 macro AUPRC. The selected hardware-deployment model is CNN-Micro: at 158K parameters and an estimated 154 KB INT8 size, it retains 0.578 exact-match accuracy, 0.794 finger accuracy, 0.697 macro F1, 0.871 macro AUROC, and 0.793 macro AUPRC.
 
 \begin{table}[t]
   \centering
   \small
-  \caption{CNN-family evaluation. Student parameter counts and INT8 sizes describe the deployment-oriented model scale; ResNet rows provide high-capacity teacher references. Bold numbers mark the best score in each column.}
+  \caption{CNN-family evaluation. Student parameter counts and INT8 sizes describe the deployment-oriented model scale; ResNet rows provide high-capacity teacher references. Bold numbers mark the best score in each column; $\dagger$ marks the selected hardware-deployment model.}
   \label{tab:cnn-sweep}
   \resizebox{\linewidth}{!}{\input{tables/cnn_student_sweep.tex}}
 \end{table}
 
-The optimized CNN results reveal a useful performance-size structure. CNN-Large improves exact-match accuracy from 0.442 to 0.593 relative to the direct CNN baseline, while macro AUROC rises from 0.767 to 0.881 and macro AUPRC from 0.764 to 0.812. Nano and Micro remain close to the larger students despite substantially smaller footprints, suggesting that the handcrafted feature representation is compatible with compact temporal convolution. ResNet-152 is the strongest teacher with 0.588 exact-match accuracy and 0.698 macro F1; CNN-Large slightly exceeds it on exact match, macro F1, macro AUROC, and macro AUPRC, indicating that the tuned student family is not merely a compressed approximation of the teacher line but a competitive model class in its own right.
+The optimized CNN results reveal a useful performance-size structure. CNN-Large improves exact-match accuracy from 0.442 to 0.593 relative to the direct CNN baseline, while macro AUROC rises from 0.767 to 0.881 and macro AUPRC from 0.764 to 0.812. CNN-Micro is within 0.015 exact-match accuracy, 0.017 macro F1, 0.011 macro AUROC, and 0.019 macro AUPRC of CNN-Large while using approximately one fifth of the INT8 footprint. It also provides a stronger ranking profile than CNN-Nano, especially on macro AUPRC, and is therefore the best deployment compromise even though CNN-Large remains the offline accuracy leader. ResNet-152 is the strongest teacher with 0.588 exact-match accuracy and 0.698 macro F1; CNN-Large slightly exceeds it on exact match, macro F1, macro AUROC, and macro AUPRC, while CNN-Micro remains competitive with the ResNet line at a compact student scale.
 
 \subsection{Improvement paths for metrics and speed}
 
@@ -68,4 +68,4 @@ Finger-wise scores show that model ranking varies across outputs. Table~\ref{tab
   \label{fig:per-finger-f1}
 \end{figure}
 
-Table~\ref{tab:literature-context} places the results beside prior stroke and sEMG studies. The comparison is not a leaderboard because the tasks differ substantially across datasets and populations. The present task is stricter than many gesture-classification settings: it uses impaired-arm \physiomio\ recordings, patient-level splits, and a five-label exact-match metric that requires all finger activations to be correct simultaneously. Within that setting, the optimized CNN branch provides the strongest current aggregate result while the baseline and per-finger analyses show why multiple inductive biases remain scientifically informative.
+Table~\ref{tab:literature-context} places the results beside prior stroke and sEMG studies. The comparison is not a leaderboard because the tasks differ substantially across datasets and populations. The present task is stricter than many gesture-classification settings: it uses impaired-arm \physiomio\ recordings, patient-level splits, and a five-label exact-match metric that requires all finger activations to be correct simultaneously. Within that setting, the optimized CNN branch is competitive with strong ResNet teachers and provides a practical deployment candidate in CNN-Micro, while the baseline and per-finger analyses show why multiple inductive biases remain scientifically informative.

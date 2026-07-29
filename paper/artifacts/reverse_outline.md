@@ -9,7 +9,7 @@
 - **Paragraph 1 topic:** finger-intent decoding is the software bridge between stroke-rehab motivation and assistive hardware.
 - **Paragraph 2 topic:** reproducibility requires stable preprocessing, labeling, and evaluation, not just a classifier.
 - **Paragraph 3 topic:** the current codebase now supports direct baselines, improved CNNs, transfer learning, and deployment utilities.
-- **Paragraph 4 topic:** the manuscript is a research-project paper, not a novel-architecture claim.
+- **Paragraph 4 topic:** the manuscript is a research-project paper whose novelty is the hardware-aware post-stroke decoding formulation.
 - **Paragraph 5 topic:** explicit study contributions and evidence boundaries.
 
 ## Related Work
@@ -19,7 +19,7 @@
 - **Paragraph 3 topic:** prior stroke studies show promise but remain small and heterogeneous.
 - **Paragraph 4 topic:** deep models and healthy-dataset results provide context but are not directly comparable.
 - **Paragraph 5 topic:** transfer learning is now one of the most relevant directions for stroke-oriented sEMG.
-- **Paragraph 6 topic:** distillation and Optuna matter because deployment constraints are part of the project.
+- **Paragraph 6 topic:** distillation, Optuna, ResNet teachers, and CNN-Micro selection matter because deployment constraints are part of the project.
 
 ## Method
 
@@ -42,7 +42,7 @@
 
 - **Paragraph 1 topic:** direct LSTM/CNN/GNN baselines show complementary strengths.
 - **Paragraph 2 topic:** optimized CNN students and ResNet teachers shift the frontier.
-- **Paragraph 3 topic:** compact students stay competitive despite small size.
+- **Paragraph 3 topic:** CNN-Micro is selected as the hardware deployment model despite CNN-Large leading offline accuracy.
 - **Paragraph 4 topic:** transfer learning helps CNN but not LSTM consistently.
 - **Paragraph 5 topic:** distillation is implemented but not yet a complete empirical result.
 - **Paragraph 6 topic:** finger-level behavior remains architecture-dependent.
@@ -53,11 +53,11 @@
 - **Paragraph 1 topic:** the project now functions as a credible software research framework.
 - **Paragraph 2 topic:** the paper's first half remains a genuine three-family comparison.
 - **Paragraph 3 topic:** healthy-to-impaired transfer is a real direction, especially for CNNs.
-- **Paragraph 4 topic:** deployment-facing utilities exist, but deployment evidence is incomplete.
-- **Paragraph 5 topic:** limitations.
-- **Paragraph 6 topic:** next milestones.
+- **Paragraph 4 topic:** relevance and novelty come from a hardware-aware impaired-arm multilabel benchmark, not from a universal SOTA claim.
+- **Paragraph 5 topic:** CNN-Micro plus distillation and latency utilities define the deployment path.
+- **Paragraph 6 topic:** limitations.
 
 ## Conclusion
 
 - **Paragraph 1 topic:** restate the software research contribution.
-- **Paragraph 2 topic:** next evidence should come from distilled-student and Raspberry Pi validation.
+- **Paragraph 2 topic:** CNN-Micro is the hardware model; next evidence should come from distilled-student and Raspberry Pi validation.

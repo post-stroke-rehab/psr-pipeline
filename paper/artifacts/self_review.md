@@ -24,13 +24,13 @@
 
 - **Answer:** Yes. The CNN branch is presented as clearly helped by healthy-to-impaired transfer, while the LSTM branch is described as mixed rather than improved.
 
-## 7. Does the paper overclaim distillation or deployment?
+## 7. Does the paper choose the right deployment model?
 
-- **Answer:** No. Distillation is described as an implemented improvement path, not as a completed benchmark result, and Raspberry Pi deployment remains future work.
+- **Answer:** Yes. CNN-Large is still identified as the offline accuracy leader, but CNN-Micro is now explicitly selected for hardware deployment because it offers the best performance-size compromise.
 
-## 8. Are external comparisons presented responsibly?
+## 8. Does the paper explain relevance, novelty, and state-of-the-art positioning?
 
-- **Answer:** Yes. The literature-context table explicitly warns that datasets, populations, gestures, and label spaces differ, so it is not presented as a strict leaderboard.
+- **Answer:** Yes. The paper now states that this is not a universal sEMG leaderboard result, but it is competitive with internal ResNet teachers on a harder PhysioMio multilabel task and is novel as an integrated hardware-aware post-stroke finger-intent study.
 
 ## 9. What is still weakest?
 

@@ -25,7 +25,7 @@ Evidence: `datasets/loaders.py`.
 Status: supported
 
 Claim: `The default PhysioMio loading path targets impaired-arm recordings unless reconfigured.`
-Evidence: `datasets/loaders.py` (`arm_split="impaired"`, `impaired_only=True`).  
+Evidence: `datasets/loaders.py` (`arm_split="impaired"`, `impaired_only=True`).
 Status: supported
 
 Claim: `The direct three-family comparison does not have a trivial winner: LSTM leads baseline exact-match accuracy and AUROC, while GNN leads baseline macro F1 and AUPRC.`
@@ -36,8 +36,8 @@ Claim: `The merged Optuna CNN-Large artifact is the strongest committed benchmar
 Evidence: `models/CNN/evaluations/summary.json`, `models/CNN/evaluations/optuna_large/metrics.json`, compared against `metrics/lstm/metrics.json`, `metrics/gnn/test/metrics.json`, `metrics/cnn/metrics.json`, and teacher metrics under `models/CNN/evaluations/teacher_resnet*/metrics.json`.
 Status: supported
 
-Claim: `Compact CNN students remain competitive while staying within small INT8 footprints intended for Raspberry Pi 5 hardware deployment.`
-Evidence: `models/CNN/README.md`, `models/CNN/evaluations/summary.json`, per-model metrics under `models/CNN/evaluations/*/metrics.json`.
+Claim: `CNN-Micro is the selected hardware-deployment model because it preserves most of CNN-Large's aggregate performance at 158K parameters and approximately 154 KB INT8 size.`
+Evidence: `models/CNN/README.md`, `models/CNN/evaluations/summary.json`, `models/CNN/evaluations/optuna_micro/metrics.json`, `models/CNN/evaluations/optuna_large/metrics.json`, `paper/tables/cnn_student_sweep.tex`.
 Status: supported
 
 Claim: `Teacher ResNet evaluations provide a stronger CNN reference line than the older direct baseline.`
@@ -45,7 +45,7 @@ Evidence: `models/CNN/evaluations/teacher_resnet50/metrics.json`, `teacher_resne
 Status: supported
 
 Claim: `Healthy-to-impaired transfer learning helps the CNN branch more clearly than the LSTM branch in the committed summaries.`
-Evidence: `training/tuning/cnn/both_stages_summary.json`, `training/tuning/lstm/both_stages_summary.json`.  
+Evidence: `training/tuning/cnn/both_stages_summary.json`, `training/tuning/lstm/both_stages_summary.json`.
 Status: supported
 
 Claim: `Distillation is implemented as a deployment-facing improvement path, but the project does not yet store a complete distilled-student benchmark bundle.`
@@ -64,6 +64,10 @@ Claim: `Hardware integration and real-time intent output are project goals, but 
 Evidence: manuscript framing in `sections/introduction.tex`, `sections/method.tex`, `sections/discussion.tex`; project context from user and poster is used only as motivation, not as quantitative evidence.
 Status: supported
 
-Claim: `This manuscript is a software systems paper, not a claim of clinical readiness or definitive state-of-the-art superiority.`
-Evidence: benchmark coverage is limited to current project artifacts; no stored ablation package, cross-dataset evaluation, or clinical validation is present.
+Claim: `The project's novelty is the integrated hardware-aware formulation of post-stroke HD-sEMG finger-intent decoding, not a single newly invented neural-network block.`
+Evidence: manuscript `related_work.tex`, `method.tex`, `results.tex`, and `discussion.tex`; evidence stack includes PhysioMio preprocessing, LSTM/CNN/GNN baselines, ResNet teacher references, transfer learning, CNN-Micro deployment selection, and deployment utilities.
+Status: supported
+
+Claim: `The project is competitive with internal ResNet teachers on the PhysioMio multilabel task but does not claim universal state-of-the-art status across healthy-subject or reduced-vocabulary sEMG benchmarks.`
+Evidence: `models/CNN/evaluations/teacher_resnet*/metrics.json`, `models/CNN/evaluations/optuna_large/metrics.json`, `models/CNN/evaluations/optuna_micro/metrics.json`, `paper/tables/literature_context.tex`, and cited literature with heterogeneous datasets and label spaces.
 Status: supported

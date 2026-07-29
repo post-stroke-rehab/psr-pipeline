@@ -14,4 +14,4 @@ This revision followed the paper-first workflow the user requested rather than a
 - The manuscript is now framed as a research project with a software focus, not as a repository changelog.
 - The core story begins with the three direct model families and only then moves to improvement paths.
 - Literature was strengthened around post-stroke sEMG, PhysioMio, Ninapro, transfer learning, and model-family context.
-- Distillation and deployment remain explicitly incomplete evidence paths even though the relevant code is now part of the story.
+- CNN-Micro is now the explicit hardware-deployment choice; distillation and on-device timing remain the next validation steps.
