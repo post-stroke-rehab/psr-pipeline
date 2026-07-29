@@ -2,12 +2,12 @@
 
 \subsection{Direct baseline models: LSTM, CNN, and GNN}
 
-The first layer of evidence is the direct three-family comparison that motivated the project before later CNN refinements were merged. Table~\ref{tab:model-comparison} shows the held-out impaired-arm metrics for the original LSTM, CNN, and GNN runs under the shared preprocessing path. No single family dominates every metric. The LSTM is the strongest baseline on exact-match accuracy and macro AUROC, the GNN is best on macro F1 and macro AUPRC, and the legacy CNN is competitive on finger accuracy but otherwise trails the other two branches.
+Table~\ref{tab:model-comparison} reports the direct comparison among LSTM, CNN, and GNN decoders on the impaired-arm test split. The three families express different assumptions about the same windowed feature sequence. The LSTM treats the input as an ordered temporal process, the CNN searches for local temporal motifs after channel-feature projection, and the GNN treats windows as nodes in a sample-level graph. Their results show complementary behavior: the LSTM leads exact-match accuracy and macro AUROC, while the GNN leads macro F1 and macro AUPRC.
 
 \begin{table}[t]
   \centering
   \small
-  \caption{Held-out test performance for the three direct model families. Bold numbers mark the best score in each column within this baseline comparison only.}
+  \caption{Held-out test performance for the three direct model families. Bold numbers mark the best score in each column within the baseline comparison.}
   \label{tab:model-comparison}
   \input{tables/model_comparison.tex}
 \end{table}
@@ -19,39 +19,39 @@ The first layer of evidence is the direct three-family comparison that motivated
   \label{fig:model-comparison}
 \end{figure}
 
-This baseline table is important because it supports the paper's first claim: the project did not begin as a single-model CNN paper. It began as a cross-family study in which recurrent, graph, and convolutional views of the same feature representation each offered different trade-offs. That observation still matters after the newer CNN work is added, because it explains why the repository contains multiple model families and why finger-level analysis remains useful even when one branch improves the aggregate scores.
+The baseline comparison suggests that temporal recurrence and graph aggregation capture different aspects of paretic sEMG. The LSTM's stronger exact-match accuracy indicates better all-label consistency, whereas the GNN's macro F1 and AUPRC suggest stronger class-balanced discrimination. The original CNN is weaker in this stage, motivating a more systematic convolutional architecture search.
 
 \subsection{Performance-improvement path: optimized CNN students and ResNet teachers}
 
-The second layer of evidence asks whether the repository's newer CNN branch materially shifts the benchmark frontier. Table~\ref{tab:cnn-sweep} answers yes. Relative to the legacy CNN baseline, the optimized student family improves all major aggregate metrics, and the strongest student, CNN-Large, becomes the best committed model artifact in the repository with 0.593 exact-match accuracy, 0.798 finger accuracy, 0.714 macro F1, 0.881 macro AUROC, and 0.812 macro AUPRC.
+Table~\ref{tab:cnn-sweep} evaluates the optimized CNN student family together with the internal ResNet teacher models. Relative to the direct CNN baseline, the optimized students improve every major aggregate metric. The strongest student, CNN-Large, reaches 0.593 exact-match accuracy, 0.798 finger accuracy, 0.714 macro F1, 0.881 macro AUROC, and 0.812 macro AUPRC.
 
 \begin{table}[t]
   \centering
   \small
-  \caption{Detailed CNN-family evaluation. Student parameter counts and INT8 sizes come from the project CNN README; teacher rows are included as internal high-capacity reference models merged through PR~56. Bold numbers mark the best score in each column across the rows shown.}
+  \caption{CNN-family evaluation. Student parameter counts and INT8 sizes describe the deployment-oriented model scale; ResNet rows provide high-capacity teacher references. Bold numbers mark the best score in each column.}
   \label{tab:cnn-sweep}
   \resizebox{\linewidth}{!}{\input{tables/cnn_student_sweep.tex}}
 \end{table}
 
-Several observations follow from Table~\ref{tab:cnn-sweep}. First, the change from the legacy CNN to the optimized CNN-Large artifact is substantial rather than cosmetic: exact-match accuracy rises from 0.442 to 0.593, macro F1 from 0.676 to 0.714, macro AUROC from 0.767 to 0.881, and macro AUPRC from 0.764 to 0.812. Second, the compact Nano and Micro students remain close to the larger models despite much smaller INT8 footprints, which is the clearest current evidence for the project's edge-oriented design goal. Third, the teacher results provide a meaningful internal reference. Among the committed teacher checkpoints, ResNet-152 is the strongest teacher with 0.588 exact-match accuracy and 0.698 macro F1, yet CNN-Large still slightly exceeds it on exact-match accuracy, macro F1, macro AUROC, and macro AUPRC. This does not prove that distillation is already responsible for the gain, because the repository does not yet commit a comparable distilled-student result set. It does show that the tuned student branch is already competitive with its larger teacher family.
+The optimized CNN results reveal a useful performance-size structure. CNN-Large improves exact-match accuracy from 0.442 to 0.593 relative to the direct CNN baseline, while macro AUROC rises from 0.767 to 0.881 and macro AUPRC from 0.764 to 0.812. Nano and Micro remain close to the larger students despite substantially smaller footprints, suggesting that the handcrafted feature representation is compatible with compact temporal convolution. ResNet-152 is the strongest teacher with 0.588 exact-match accuracy and 0.698 macro F1; CNN-Large slightly exceeds it on exact match, macro F1, macro AUROC, and macro AUPRC, indicating that the tuned student family is not merely a compressed approximation of the teacher line but a competitive model class in its own right.
 
 \subsection{Improvement paths for metrics and speed}
 
-Transfer-learning summaries in Table~\ref{tab:transfer-learning} show a deliberately asymmetric result: one path works clearly, one does not. For the CNN branch, healthy-to-impaired staging improves exact-match accuracy from 0.465 to 0.585 and finger accuracy from 0.760 to 0.800 while also improving macro AUROC and macro AUPRC. For the LSTM branch, finetuning improves exact-match and finger accuracy but lowers macro F1, macro AUROC, and macro AUPRC relative to the healthy pretraining summary. The practical conclusion is that healthy-arm pretraining is already a credible improvement path for the CNN family in this repository, but not a universally beneficial recipe across architectures.
+Table~\ref{tab:transfer-learning} summarizes healthy-to-impaired transfer learning. For the CNN branch, finetuning improves exact-match accuracy from 0.465 to 0.585, finger accuracy from 0.760 to 0.800, macro AUROC from 0.833 to 0.863, and macro AUPRC from 0.699 to 0.767. The LSTM branch behaves differently: exact-match and finger accuracy improve after finetuning, but macro F1, AUROC, and AUPRC decrease. Transfer learning therefore appears beneficial for the convolutional branch while exposing architecture-dependent sensitivity in the recurrent branch.
 
 \begin{table}[t]
   \centering
   \small
-  \caption{Committed healthy-to-impaired transfer-learning summaries. The CNN branch benefits consistently after finetuning; the LSTM branch improves on exact-match and finger accuracy but loses ground on ranking-sensitive metrics.}
+  \caption{Healthy-to-impaired transfer-learning summaries. The CNN branch improves consistently after finetuning; the LSTM branch improves on exact-match and finger accuracy but declines on ranking-sensitive metrics.}
   \label{tab:transfer-learning}
   \input{tables/transfer_learning.tex}
 \end{table}
 
-Distillation is best interpreted differently. The repository now contains teacher-ensemble distillation code, explicit multilabel distillation losses, threshold-tuning utilities, and latency-benchmarking scripts, all of which are aligned with the project's goal of improving the speed-quality trade-off for Raspberry Pi-class deployment. However, the current artifact set still lacks a mature distilled-student evaluation bundle and committed on-device timing logs. The distillation story is therefore architectural and procedural rather than empirical at this stage: it is an implemented path for future speed and compression gains, not yet a closed result in the same sense as the direct or transfer tables.
+The teacher-student design also provides a path toward faster inference. The current distillation objective combines hard multilabel supervision with temperature-scaled teacher probabilities, allowing compact students to learn from ResNet teachers while retaining the same five-finger output space. Because the present study reports the optimized student and teacher evaluations separately, distillation is treated as the next compression experiment rather than as the source of the student results in Table~\ref{tab:cnn-sweep}.
 
 \subsection{Finger-level behavior and external positioning}
 
-Finger-wise scores show that the ranking is not uniform across all outputs. Table~\ref{tab:per-finger-f1} compares the LSTM direct baseline, the GNN direct baseline, and the best optimized CNN student. The GNN remains strongest on the thumb label, the optimized CNN-Large leads on index and little finger, and the LSTM remains slightly strongest on middle and ring finger. This pattern suggests that aggregate CNN gains do not erase all output-specific variation; different inductive biases still matter at the finger level.
+Finger-wise scores show that model ranking varies across outputs. Table~\ref{tab:per-finger-f1} compares the LSTM direct baseline, the GNN direct baseline, and the best optimized CNN student. The GNN is strongest on thumb, CNN-Large leads on index and little finger, and the LSTM remains slightly strongest on middle and ring finger. These differences are clinically relevant because a rehabilitation controller may value different fingers differently depending on the movement being assisted.
 
 \begin{table}[t]
   \centering
@@ -68,6 +68,4 @@ Finger-wise scores show that the ranking is not uniform across all outputs. Tabl
   \label{fig:per-finger-f1}
 \end{figure}
 
-To show where this project stands relative to the literature, Table~\ref{tab:literature-context} should be read alongside the internal results rather than against them. Prior stroke-decoding papers often report much higher accuracies than our exact-match scores, but they typically solve easier multiclass tasks with fewer gestures, fewer labels, smaller cohorts, or healthy-data pretraining. Our current numbers are stricter in at least three ways: they use a five-finger multilabel formulation, they are derived from impaired-arm \physiomio\ recordings with patient-level splits, and the headline exact-match metric requires all five finger labels to be correct simultaneously. For that reason, the more meaningful external takeaway is not that \repo\ already leads the literature, but that it now occupies a technically credible position: stronger than a simple proof-of-concept, richer than a single-model benchmark, and explicit enough to support future work on transfer, distillation, and embedded deployment.
-
-The results should nevertheless be read with an evidence boundary in mind. The project now includes code for teacher-ensemble distillation, per-finger threshold tuning, and CPU latency measurement, but it does not yet commit a mature result bundle produced by those new utilities, nor does it store on-device Raspberry Pi 5 timings. The current paper can therefore support a stronger research narrative than the previous draft, but not a full claim of embedded deployment readiness.
+Table~\ref{tab:literature-context} places the results beside prior stroke and sEMG studies. The comparison is not a leaderboard because the tasks differ substantially across datasets and populations. The present task is stricter than many gesture-classification settings: it uses impaired-arm \physiomio\ recordings, patient-level splits, and a five-label exact-match metric that requires all finger activations to be correct simultaneously. Within that setting, the optimized CNN branch provides the strongest current aggregate result while the baseline and per-finger analyses show why multiple inductive biases remain scientifically informative.
