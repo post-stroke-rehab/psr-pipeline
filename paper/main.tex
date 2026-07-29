@@ -10,6 +10,10 @@
 \usepackage{graphicx}
 \usepackage{subcaption}
 \usepackage{enumitem}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{ragged2e}
+\usepackage{placeins}
 \usepackage{xcolor}
 \usepackage{tikz}
 \usepackage{pgfplots}
@@ -21,8 +25,10 @@
 \usetikzlibrary{positioning}
 \setlength{\parskip}{0.35em}
 \setlength{\parindent}{0pt}
+\captionsetup{font=small,labelfont=bf}
 \graphicspath{{figures/}}
 
+\newcolumntype{Y}{>{\RaggedRight\arraybackslash}X}
 \newcommand{\physiomio}{PhysioMio\xspace}
 
 \title{Deep Neural Networks for Learning Intent from sEMG Signals to Support Hardware Devices for Post-Stroke Neurorehabilitation}

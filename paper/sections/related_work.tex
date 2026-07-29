@@ -12,10 +12,15 @@ Transfer learning has recently become one of the most relevant directions for re
 
 Deployment-oriented optimization provides the final piece of context for this manuscript. Knowledge distillation is a standard way to transfer behavior from larger teachers into smaller students~\citep{hinton2015distilling}, and Optuna is widely used for black-box hyperparameter search under practical constraints~\citep{akiba2019optuna}. For rehabilitation wearables, these methods connect offline decoding accuracy to the practical requirements of model size, latency, and hardware-constrained inference. The novelty of this project is therefore not a single new neural-network block; it is the end-to-end formulation of post-stroke HD-sEMG finger-intent decoding as a hardware-aware research problem, combining \physiomio-specific preprocessing, three inductive-bias families, ResNet teacher comparisons, transfer learning, compact student selection, and deployment-facing evaluation hooks under one shared multilabel protocol.
 
-\begin{table}[t]
+\begin{table}[!htbp]
   \centering
-  \footnotesize
   \caption{Literature context for the current study. Reported numbers reflect different populations, sensors, gesture vocabularies, and label spaces.}
   \label{tab:literature-context}
-  \resizebox{\linewidth}{!}{\input{tables/literature_context.tex}}
+  \begingroup
+  \scriptsize
+  \setlength{\tabcolsep}{3pt}
+  \renewcommand{\arraystretch}{1.14}
+  \input{tables/literature_context.tex}
+  \endgroup
 \end{table}
+\FloatBarrier
