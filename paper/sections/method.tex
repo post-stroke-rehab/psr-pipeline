@@ -1,0 +1,132 @@
+\section{Method}
+
+\subsection{Overview}
+
+This project defines a modular decoding workflow from multichannel sEMG and gesture annotations to five-finger prediction logits. The pipeline contains four stages: data harmonization, signal processing, model inference, and evaluation or deployment analysis. Figure~\ref{fig:pipeline} summarizes the workflow used throughout the study.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth,trim=35 120 35 70,clip]{pipeline_overview.png}
+  \caption{Overview of the sEMG finger-intent decoding pipeline. Raw sEMG and gesture annotations are aligned, segmented, featurized, mapped into shared tensors, evaluated across multiple model families, and prepared for downstream deployment analysis.}
+  \label{fig:pipeline}
+\end{figure}
+
+For notation, let a pre-segmented raw recording be $X_{\mathrm{raw}} \in \mathbb{R}^{T \times C}$, where $T$ is the number of raw time samples and $C=64$ is the channel count under the \physiomio\ path. After preprocessing and windowing, the project extracts a feature tensor $X_{\mathrm{feat}} \in \mathbb{R}^{C \times W \times F}$, where $W$ is the number of windows and $F=12$ is the number of handcrafted descriptors per channel-window pair. Each sample is paired with a multilabel target vector $y \in \{0,1\}^5$ indicating intended activation of thumb, index, middle, ring, and little finger.
+
+\subsection{Data harmonization and ingestion}
+
+The implementation builds processed datasets directly from raw \physiomio\ parquet files. The loader searches the raw data tree, groups files by patient, aligns contiguous stretches of the same \texttt{movement\_type}, maps each label to a five-bit finger target, discards contiguous label segments shorter than 200 raw samples, and applies the preprocessing pipeline to each usable segment. At the default 2000 Hz sampling rate, this 200-sample rule is a permissive minimum-duration filter for label segments; feature extraction still requires complete 200 ms windows, corresponding to 400 raw samples at 2000 Hz, because the windowing stage does not zero-pad short segments. This converts gesture-level clinical recordings into segment-level multilabel examples.
+
+The default configuration uses \physiomio\ recordings sampled at 2000 Hz and selects the impaired arm. Patients are partitioned into deterministic 70/10/20 train/validation/test splits, so samples from the same patient do not appear in multiple partitions. Processed samples are padded to a dataset-wide maximum window count for batched tensor operations.
+
+\subsection{Signal preprocessing}
+
+The preprocessing module is explicitly parameterized by a frozen configuration object in the implementation. Raw sEMG first passes through a fourth-order Butterworth band-pass filter with 20--450 Hz cutoffs and zero-phase forward-backward application. This stage suppresses low-frequency motion artifacts and high-frequency electrical noise while preserving time alignment across channels.
+
+The filtered signal is then denoised with wavelet soft-thresholding. The default configuration uses a Symlet-4 basis, four decomposition levels, universal threshold selection, and a median-based noise estimate. The same preprocessing configuration is used for all model families, making downstream differences attributable to the representation and predictor rather than to separate signal-conditioning choices.
+
+After denoising, each continuous segment is divided into 200 ms windows with 50\% overlap and no zero-padding. These settings balance temporal responsiveness against the sample count required for stable summary statistics.
+
+\subsection{Window-level feature representation}
+
+Each channel-window pair is summarized by twelve handcrafted descriptors spanning time and frequency domains. The time-domain set includes root mean square, mean absolute value, integrated EMG, waveform length, variance, zero crossings, slope sign changes, and Willison amplitude. The frequency-domain set includes mean frequency, median frequency, spectral entropy, and total power, with spectral quantities estimated from Welch periodograms using \texttt{nperseg = min(256, len(x))}~\citep{welch1967fft}. For the default 200 ms \physiomio\ window, $\mathrm{len}(x)=400$, so the Welch segment length is 256 samples; shorter windows, if produced by alternate configurations, use their full length. Because no explicit \texttt{noverlap} is passed, SciPy uses its default 50\% periodogram overlap. Degenerate spectra are zeroed explicitly to avoid unstable feature values. The resulting tensor has shape $(C, W, F)$, where $C$ is the number of channels, $W$ is the number of windows, and $F=12$ is the feature count.
+
+This feature representation is a deliberate engineering choice rather than a claim that raw end-to-end learning is unnecessary. Handcrafted time- and frequency-domain summaries reduce the input dimensionality, expose standard sEMG descriptors to all model families, and support compact students intended for embedded inference. They are also appropriate for the current single-dataset setting, where learning stable low-level time-frequency filters directly from raw HD-sEMG would require additional data and ablation experiments.
+
+\subsection{Tensor formatting and shared adapter}
+
+The project standardizes cross-model comparison with one shared adapter. It transforms $(C, W, F)$ or $(N, C, W, F)$ tensors into $(N, W, C \times F)$ sequences, where windows act as time steps and all channel features are concatenated into one vector per step. For a single sample, the adapted sequence can be written as
+\[
+S = \left[s_1, \ldots, s_W\right]^\top \in \mathbb{R}^{W \times d},
+\qquad
+s_w = \mathrm{vec}\!\left(X_{\mathrm{feat},:,w,:}\right),
+\qquad
+d = C F = 768.
+\]
+This adapter creates a common input space for recurrent, convolutional, and graph-based predictors.
+
+For the CNN branch, the adapted tensor is subsequently permuted to a channels-first layout. The CNN stack treats the $64 \times 12$ channel-feature grid as 768 input channels for temporal \texttt{Conv1d} layers, preserving the same upstream representation while allowing convolutions over window order. This is best interpreted as temporal convolution over a feature sequence whose per-window vector already contains spatial-channel and spectral summaries. It is not asserted to be superior to raw-signal 1D CNNs or 2D channel-by-time convolutions; those alternatives remain important ablations for future work.
+
+\subsection{Predictor families}
+
+The LSTM branch applies two stacked recurrent layers with hidden sizes 128 and 256, followed by a 128-unit fully connected layer and dropout before five output logits. Given adapted sequence input $s_t$, the recurrent dynamics follow the standard LSTM update
+\[
+\begin{aligned}
+i_t &= \sigma(W_i s_t + U_i h_{t-1} + b_i), \\
+f_t &= \sigma(W_f s_t + U_f h_{t-1} + b_f), \\
+o_t &= \sigma(W_o s_t + U_o h_{t-1} + b_o), \\
+\tilde{c}_t &= \tanh(W_c s_t + U_c h_{t-1} + b_c), \\
+c_t &= f_t \odot c_{t-1} + i_t \odot \tilde{c}_t, \\
+h_t &= o_t \odot \tanh(c_t),
+\end{aligned}
+\]
+and the project uses the final hidden state from the second recurrent layer for classification. This branch emphasizes temporal accumulation across windows and serves as the main sequential baseline for the direct benchmark.
+
+The GNN branch interprets each time window as a node in a graph. The implementation supports GCN, GraphSAGE, and GAT operators~\citep{kipf2017gcn,hamilton2017graphsage,velickovic2018gat}; the benchmarked direct model uses the default two-layer GCN setting with hidden dimension 64, ReLU activations between graph-convolution layers, dropout 0.5, and mean graph pooling. The benchmarked path constructs a complete undirected graph over windows within each sample before graph-level pooling and readout. The resulting edge set has $O(W^2)$ edges per sample, which is computationally feasible for the short padded window sequences used here and lets each window exchange information with all other windows. Sparse temporal adjacency and k-nearest-neighbor graph construction are left as graph-design ablations. At a generic level, the node update can be written as
+\[
+h_i^{(\ell+1)} =
+\psi_\ell\!\left(
+h_i^{(\ell)},
+\operatorname*{AGG}_{j \in \mathcal{N}(i)}
+\phi_\ell\!\left(h_i^{(\ell)}, h_j^{(\ell)}\right)
+\right),
+\]
+followed by graph pooling
+\[
+g = \operatorname{POOL}\!\left(\{h_i^{(L)}\}_{i=1}^{W}\right)
+\]
+and a multilabel readout head. In the benchmarked GCN setting, $\operatorname*{AGG}$ is the normalized neighborhood aggregation implemented by \texttt{GCNConv}, $\psi_\ell$ is a linear graph-convolution update followed by ReLU for non-final layers, and \texttt{POOL} is global mean pooling. This branch injects an explicit structural prior: windows are related observations rather than only a flat sequence.
+
+The CNN branch includes five student variants ranging from Nano to XLarge, each built around a $1 \times 1$ projection, temporal convolution blocks, adaptive pooling, and a compact fully connected head. If the channels-first representation is denoted by $\hat{S} \in \mathbb{R}^{d \times W}$, the student stack can be summarized as
+\[
+H^{(0)} = \rho\!\left(\operatorname{BN}(W_p * \hat{S} + b_p)\right),
+\qquad
+H^{(\ell+1)} = \rho\!\left(\operatorname{BN}(W_\ell * H^{(\ell)} + b_\ell)\right),
+\]
+where $*$ denotes 1D convolution over window order and $\rho$ is a ReLU nonlinearity. Adaptive pooling compresses the temporal axis before a multilayer perceptron produces the five logits. The student family spans approximately 54K parameters and 53 KB INT8 for Nano to 1.62M parameters and 1.58 MB INT8 for XLarge. The teacher family uses 1D ResNet-50, ResNet-101, and ResNet-152 variants with bottleneck residual blocks.
+
+\subsection{Training, tuning, and evaluation protocol}
+
+The training utilities unify optimization and reporting across model families. The current implementation uses binary cross-entropy with logits for five-label prediction, Adam-based optimization, plateau-triggered learning-rate reduction, early stopping, checkpointing, and saved metric curves. For logits $z \in \mathbb{R}^5$, the base multilabel objective is
+\[
+\mathcal{L}_{\mathrm{BCE}}
+=
+-\frac{1}{5}
+\sum_{k=1}^{5}
+\left[
+y_k \log \sigma(z_k)
++ (1-y_k) \log \left(1-\sigma(z_k)\right)
+\right].
+\]
+Evaluation reports subset accuracy, also called exact match ratio, finger-level averaged accuracy, macro precision, macro recall, macro F1, macro AUROC, and macro AUPRC. Subset accuracy counts a sample as correct only when all five finger labels are predicted correctly. The metrics module also stores per-finger scores and task-level curve data, which enables both aggregate and finger-wise analysis after training.
+
+For the CNN students, Optuna searches architecture and training choices for each model size~\citep{akiba2019optuna}. For a trial with validation macro F1 $F_{\mathrm{val}}$ reported on a 0--100 scale, measured latency $t$, and size-specific baseline latency $t_{\mathrm{ref}}$ measured after one baseline epoch, the objective is
+\[
+\operatorname{score}
+= \frac{F_{\mathrm{val}}}{100}\, p\!\left(\frac{t}{t_{\mathrm{ref}}}\right),
+\]
+where
+\[
+p(r)=
+\begin{cases}
+1, & r \le 1,\\
+1 - 3(r-1), & 1 < r \le 1.2,\\
+0.05, & r > 1.2.
+\end{cases}
+\]
+Thus trials at or below the baseline latency are not penalized, mildly slower trials receive a linear penalty, and substantially slower trials are strongly downweighted. Trial-level early stopping and median pruning are used during search.
+
+The system also implements teacher-ensemble distillation, per-finger threshold tuning, and latency benchmarking, but the present Results section reports only the non-distilled student and teacher benchmarks. For multilabel distillation, the implemented loss blends the hard target term with a temperature-scaled soft target from the teacher,
+\[
+\mathcal{L}_{\mathrm{KD}}
+=
+\alpha \, \mathcal{L}_{\mathrm{BCE}}(z_s, y)
++
+(1-\alpha) T^2
+\operatorname{BCELogits}\!\left(\frac{z_s}{T}, \sigma\!\left(\frac{z_t}{T}\right)\right),
+\]
+where $z_s$ and $z_t$ are student and teacher logits, $T$ is the distillation temperature, and $\alpha$ controls the hard-soft balance. A separate latency benchmark reports mean, median, and 95th-percentile inference time on a chosen device.
+
+\subsection{Transfer-learning path}
+
+In addition to direct impaired-arm benchmarks, the study evaluates two-stage CNN and LSTM training. Models are first pretrained on healthy-arm recordings and then finetuned on impaired-arm recordings while preserving the same five-finger multilabel objective. The reported CNN transfer experiment uses the CNN-Base configuration selected by the two-stage tuning run, so its pretraining and finetuning rows are not intended to duplicate either the legacy direct CNN baseline or the optimized CNN-Micro/CNN-Large deployment rows. This tests whether healthy-limb structure can provide a useful initialization for paretic-limb decoding.
