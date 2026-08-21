@@ -31,6 +31,13 @@ Local shape/logging smoke test:
 python scripts/run_rp5_4ch_experiments.py --stage smoke
 ```
 
+Preprocessing plus training smoke test without downloading PhysioMio:
+
+```bash
+python scripts/run_preprocess.py --four-channel --synthetic-smoke --processed-dir datasets/processed/physiomio_rp5_4ch_smoke --fs 2048 --force
+python scripts/run_rp5_4ch_experiments.py --stage smoke
+```
+
 Colab run sequence after PhysioMio preprocessing:
 
 ```bash
