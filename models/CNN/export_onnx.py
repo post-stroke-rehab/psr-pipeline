@@ -1,19 +1,22 @@
 """Export a trained CNN checkpoint to ONNX for Raspberry Pi 5 inference.
 
+CNN_Micro is the default deployment target because it is the current best model.
+
 Examples
 --------
-# Standard checkpoint/state_dict
+# Standard CNN Micro checkpoint/state_dict
 python models/CNN/export_onnx.py \
-    --checkpoint models/CNN/checkpoints/student_nano.pth \
-    --model nano \
-    --output models/CNN/checkpoints/student_nano.onnx
-
-# Optuna checkpoint; arch_kwargs are restored automatically
-python models/CNN/export_onnx.py \
-    --checkpoint models/CNN/checkpoints/optuna_nano.pth \
-    --model nano \
-    --output models/CNN/checkpoints/optuna_nano.onnx \
+    --checkpoint models/CNN/checkpoints/student_micro.pth \
+    --output models/CNN/checkpoints/student_micro.onnx \
     --verify
+
+# Optuna CNN Micro checkpoint; arch_kwargs are restored automatically
+python models/CNN/export_onnx.py \
+    --checkpoint models/CNN/checkpoints/optuna_micro.pth \
+    --output models/CNN/checkpoints/optuna_micro.onnx \
+    --verify
+
+Use --model to export another student architecture if needed.
 
 The exporter infers ``in_channels`` from ``proj.weight`` when possible, so a
 model retrained for a reduced electrode set (for example 6 channels x 12
@@ -70,7 +73,6 @@ def _extract_state_dict(checkpoint: Any) -> tuple[dict[str, torch.Tensor], dict[
         ):
             return candidate, arch_kwargs
 
-    # A plain state_dict is itself a dict[str, Tensor].
     if checkpoint and all(isinstance(value, torch.Tensor) for value in checkpoint.values()):
         return checkpoint, arch_kwargs
 
@@ -81,7 +83,6 @@ def _extract_state_dict(checkpoint: Any) -> tuple[dict[str, torch.Tensor], dict[
 
 
 def _infer_in_channels(state_dict: dict[str, torch.Tensor]) -> int | None:
-    # Student models begin with: Conv1d(in_channels, proj_ch, kernel_size=1).
     weight = state_dict.get("proj.weight")
     if weight is not None and weight.ndim == 3:
         return int(weight.shape[1])
@@ -89,8 +90,6 @@ def _infer_in_channels(state_dict: dict[str, torch.Tensor]) -> int | None:
 
 
 def load_model(checkpoint_path: Path, model_name: str, in_channels: int | None) -> nn.Module:
-    # weights_only=False also supports legacy checkpoints that saved an nn.Module.
-    # Only load checkpoints you trust.
     checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
 
     if isinstance(checkpoint, nn.Module):
@@ -154,9 +153,7 @@ def verify_onnx(model: nn.Module, onnx_path: Path, sample_input: torch.Tensor) -
         import onnx
         import onnxruntime as ort
     except ImportError as exc:
-        raise RuntimeError(
-            "Verification requires: pip install onnx onnxruntime"
-        ) from exc
+        raise RuntimeError("Verification requires: pip install onnx onnxruntime") from exc
 
     onnx_model = onnx.load(str(onnx_path))
     onnx.checker.check_model(onnx_model)
@@ -176,7 +173,12 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--checkpoint", type=Path, required=True, help="Input .pt/.pth checkpoint")
     parser.add_argument("--output", type=Path, required=True, help="Output .onnx path")
-    parser.add_argument("--model", choices=MODEL_REGISTRY, required=True, help="Student architecture")
+    parser.add_argument(
+        "--model",
+        choices=MODEL_REGISTRY,
+        default="micro",
+        help="Student architecture (default: micro)",
+    )
     parser.add_argument(
         "--in-channels",
         type=int,
@@ -207,8 +209,6 @@ def main() -> None:
 
     model = load_model(args.checkpoint, args.model, args.in_channels)
 
-    # The projection layer is present on all student CNNs and gives the exact
-    # feature-channel count expected by this trained checkpoint.
     if not hasattr(model, "proj") or not isinstance(model.proj, nn.Conv1d):
         if args.in_channels is None:
             raise ValueError("Could not infer input channels; pass --in-channels explicitly")
@@ -225,6 +225,7 @@ def main() -> None:
     )
 
     print(f"Exported: {args.output}")
+    print(f"Model: {args.model}")
     print(f"Input: float32 [batch, {input_channels}, windows]")
     print("Output: float32 [batch, 5] raw logits")
 
