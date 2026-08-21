@@ -12,6 +12,10 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from datasets.loaders import make_dataloaders, LoaderConfig
+from datasets.physiomio_four_channel import (
+    FourChannelPhysioMioConfig,
+    build_physiomio_four_channel_views,
+)
 
 
 # Removes existing processed tensors so data can be rebuilt
@@ -41,7 +45,7 @@ def _build_one_split(
         out_dim=args.out_dim,
         use_physiomio_if_missing=True,
         physiomio_raw_dir=str(raw_dir),
-        physiomio_fs=float(args.fs),
+        physiomio_fs=float(args.fs if args.fs is not None else 2048.0),
         arm_split=arm_split,
         impaired_only=(arm_split == "impaired"),
         min_segment_samples=int(args.min_seg_samples),
@@ -73,7 +77,8 @@ def main() -> None:
     parser.add_argument("--val-file", type=str, default="val.pt")
     parser.add_argument("--test-file", type=str, default="test.pt")
 
-    parser.add_argument("--fs", type=float, default=2000.0)
+    parser.add_argument("--fs", type=float, default=None)
+    parser.add_argument("--four-channel", action="store_true", default=False)
     parser.add_argument("--arm-split", choices=("impaired", "healthy", "both"), default="impaired")
     parser.add_argument("--separate-arm-dirs", action="store_true", default=False)
     parser.add_argument("--impaired-only", action="store_true", default=None)
@@ -100,6 +105,22 @@ def main() -> None:
         arm_split = "both"
     elif args.impaired_only is True:
         arm_split = "impaired"
+
+    if args.four_channel:
+        cfg = FourChannelPhysioMioConfig(
+            raw_root=str(raw_dir),
+            processed_root=str(processed_dir),
+            seed=args.seed,
+            fs=float(args.fs if args.fs is not None else 2048.0),
+            arm_split=arm_split,
+            impaired_only=(arm_split == "impaired"),
+            min_segment_samples=int(args.min_seg_samples),
+            skip_rest=bool(args.skip_rest),
+            max_patients=args.max_patients,
+        )
+        build_physiomio_four_channel_views(cfg)
+        print("Four-channel PhysioMio processed views ready.")
+        return
 
     if arm_split == "both" and args.separate_arm_dirs:
         for split_name in ("healthy", "impaired"):

@@ -11,3 +11,4 @@ torchaudio
 seedir
 torch_geometric
 optuna
+huggingface_hub

@@ -24,3 +24,5 @@ results/**/*.pt
 training/tuning/**/*.db
 training/tuning/**/ckpts/
 training/tuning/**/trials/
+experiments/rp5_4ch/runs/**/checkpoint_best.pt
+!experiments/rp5_4ch/final/*.pt
