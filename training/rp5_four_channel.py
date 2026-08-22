@@ -571,6 +571,8 @@ def sanitize_split_meta(meta: Dict[str, Any]) -> Dict[str, Any]:
 
     def is_sensitive_key(key: str) -> bool:
         lower = key.lower()
+        if lower.endswith("_count") or lower.endswith("_counts") or lower.endswith("_sha256"):
+            return False
         return any(part in lower for part in sensitive)
 
     def compact_list(key: str, values: Sequence[Any]) -> Dict[str, Any]:
@@ -588,6 +590,9 @@ def sanitize_split_meta(meta: Dict[str, Any]) -> Dict[str, Any]:
             cleaned: Dict[str, Any] = {}
             for child_key, child_value in obj.items():
                 child_key_str = str(child_key)
+                lower_key = child_key_str.lower()
+                if lower_key.endswith("_present") and any(part in lower_key for part in sensitive):
+                    continue
                 if is_sensitive_key(child_key_str):
                     if isinstance(child_value, (list, tuple)):
                         cleaned.update(compact_list(child_key_str, child_value))
@@ -604,6 +609,32 @@ def sanitize_split_meta(meta: Dict[str, Any]) -> Dict[str, Any]:
 
     cleaned = scrub(meta)
     return cleaned if isinstance(cleaned, dict) else {"value": cleaned}
+
+
+def sanitize_run_config(config: Dict[str, Any]) -> Dict[str, Any]:
+    """Make saved run configs portable and safe for committed artifacts."""
+
+    def clean_path(value: str) -> str:
+        normalized = value.replace("\\", "/")
+        for marker in (
+            "datasets/processed/",
+            "datasets/raw/",
+            "experiments/",
+            "results/",
+        ):
+            if marker in normalized:
+                return normalized[normalized.index(marker) :]
+        return normalized
+
+    cleaned: Dict[str, Any] = {}
+    for key, value in config.items():
+        if isinstance(value, dict):
+            cleaned[key] = sanitize_run_config(value)
+        elif isinstance(value, str) and ("/" in value or "\\" in value):
+            cleaned[key] = clean_path(value)
+        else:
+            cleaned[key] = value
+    return cleaned
 
 
 def write_json(path: str | Path, obj: Any) -> None:
@@ -839,7 +870,7 @@ def run_four_channel_experiment(cfg: FourChannelRunConfig) -> Dict[str, Any]:
         },
     }
 
-    write_json(run_dir / "config.json", asdict(cfg))
+    write_json(run_dir / "config.json", sanitize_run_config(asdict(cfg)))
     write_json(run_dir / "history.json", history)
     write_json(run_dir / "thresholds.json", {"thresholds": thresholds, "source": "validation"})
     write_json(run_dir / "val_metrics.json", _jsonable_metrics(val_metrics_tuned))

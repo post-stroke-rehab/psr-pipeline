@@ -10,6 +10,7 @@ from training.rp5_four_channel import (
     feature_indices_for_channels,
     load_cnn_micro_transfer,
     run_four_channel_experiment,
+    sanitize_run_config,
     sanitize_split_meta,
     stride_samples,
     window_samples,
@@ -47,6 +48,7 @@ def test_window_math_matches_physiomio_contract():
 def test_split_meta_sanitizer_removes_patient_ids_and_paths():
     meta = {
         "patients": ["subject01", "subject02"],
+        "patient_count": 2,
         "source_paths": ["redacted/source/location"],
         "arms": ["impaired"] * 25,
         "view": "right",
@@ -56,9 +58,23 @@ def test_split_meta_sanitizer_removes_patient_ids_and_paths():
     assert "subject01" not in serialized
     assert "redacted/source/location" not in serialized
     assert clean["patients_count"] == 2
+    assert clean["patient_count"] == 2
     assert clean["source_paths_count"] == 1
     assert clean["arms"]["arms_count"] == 25
     assert clean["view"] == "right"
+
+
+def test_run_config_sanitizer_makes_dataset_paths_portable():
+    clean = sanitize_run_config(
+        {
+            "processed_dir": "/workspace/project/datasets/processed/physiomio_rp5_4ch",
+            "full_processed_dir": "C:/tmp/project/datasets/processed/physiomio",
+            "output_root": "/workspace/project/experiments/rp5_4ch/runs",
+        }
+    )
+    assert clean["processed_dir"] == "datasets/processed/physiomio_rp5_4ch"
+    assert clean["full_processed_dir"] == "datasets/processed/physiomio"
+    assert clean["output_root"] == "experiments/rp5_4ch/runs"
 
 
 def test_transfer_slices_full64_first_layer(tmp_path):

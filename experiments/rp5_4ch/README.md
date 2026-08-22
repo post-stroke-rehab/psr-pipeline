@@ -64,7 +64,7 @@ tensor layout is not valid for direct first-layer slicing transfer.
 
 ## Run Folder Contents
 
-Each completed run writes:
+Each completed local run writes:
 
 - `config.json`
 - `console.log`
@@ -77,4 +77,7 @@ Each completed run writes:
 - `status.json`
 - `checkpoint_best.pt`
 
-The final selected checkpoint should be copied to `experiments/rp5_4ch/final/` with the matching `model_card.md`, `model_config.json`, `thresholds.json`, and `manifest.json`.
+Intermediate `checkpoint_best.pt` files under `runs/` are intentionally ignored
+and are not part of the committed artifact set. The committed checkpoint handoff
+is in `experiments/rp5_4ch/final/` with the matching model card, configuration,
+thresholds, and comparison summaries.

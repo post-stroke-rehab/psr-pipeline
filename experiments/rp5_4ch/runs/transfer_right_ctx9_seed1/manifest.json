@@ -143,10 +143,6 @@
         "ring",
         "little"
       ],
-      "patient_ids_count": 720,
-      "patient_ids_unique_count": 9,
-      "patients_count": 9,
-      "patients_unique_count": 9,
       "preprocess": {
         "high": 450.0,
         "level": 4,
@@ -163,8 +159,6 @@
         "zero_phase": true
       },
       "source": "physiomio",
-      "source_files_count": 720,
-      "source_files_unique_count": 45,
       "split": "test"
     },
     "train": {
@@ -265,10 +259,6 @@
         "ring",
         "little"
       ],
-      "patient_ids_count": 2656,
-      "patient_ids_unique_count": 34,
-      "patients_count": 34,
-      "patients_unique_count": 34,
       "preprocess": {
         "high": 450.0,
         "level": 4,
@@ -285,8 +275,6 @@
         "zero_phase": true
       },
       "source": "physiomio",
-      "source_files_count": 2656,
-      "source_files_unique_count": 166,
       "split": "train"
     },
     "val": {
@@ -387,10 +375,6 @@
         "ring",
         "little"
       ],
-      "patient_ids_count": 432,
-      "patient_ids_unique_count": 5,
-      "patients_count": 5,
-      "patients_unique_count": 5,
       "preprocess": {
         "high": 450.0,
         "level": 4,
@@ -407,8 +391,6 @@
         "zero_phase": true
       },
       "source": "physiomio",
-      "source_files_count": 432,
-      "source_files_unique_count": 27,
       "split": "val"
     }
   },

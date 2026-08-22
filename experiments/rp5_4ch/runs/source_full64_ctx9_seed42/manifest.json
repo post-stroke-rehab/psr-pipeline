@@ -47,8 +47,7 @@
       ],
       "fs": 2048.0,
       "impaired_only": true,
-      "patients_count": 48,
-      "patients_unique_count": 48,
+      "patient_count": 9,
       "seed": 42,
       "source": "physiomio"
     },
@@ -59,8 +58,7 @@
       ],
       "fs": 2048.0,
       "impaired_only": true,
-      "patients_count": 48,
-      "patients_unique_count": 48,
+      "patient_count": 34,
       "seed": 42,
       "source": "physiomio"
     },
@@ -71,12 +69,12 @@
       ],
       "fs": 2048.0,
       "impaired_only": true,
-      "patients_count": 48,
-      "patients_unique_count": 48,
+      "patient_count": 5,
       "seed": 42,
       "source": "physiomio"
     }
   },
+  "split_patient_metadata_status": "Counts inferred from 48-patient 70/10/20 patient-level split rule used by datasets.loaders._patient_split_indices; identities intentionally not committed.",
   "stride_samples": 205,
   "torch": "2.13.0",
   "window_samples": 410

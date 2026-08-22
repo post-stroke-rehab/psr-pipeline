@@ -15,6 +15,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from training.rp5_four_channel import (
     FourChannelRunConfig,
+    sanitize_run_config,
     summarize_runs,
     write_json,
     run_four_channel_experiment,
@@ -46,7 +47,7 @@ class Tee:
 def run_logged(cfg: FourChannelRunConfig) -> dict:
     run_dir = Path(cfg.output_root) / cfg.run_id
     run_dir.mkdir(parents=True, exist_ok=True)
-    write_json(run_dir / "config.json", asdict(cfg))
+    write_json(run_dir / "config.json", sanitize_run_config(asdict(cfg)))
     with open(run_dir / "console.log", "w") as log_file:
         tee_out = Tee(sys.stdout, log_file)
         tee_err = Tee(sys.stderr, log_file)

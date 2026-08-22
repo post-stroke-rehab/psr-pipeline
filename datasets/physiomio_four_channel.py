@@ -196,13 +196,14 @@ def _manifest_for_view(
         patients = sorted(set(meta["patient_ids"]))
         source_files = sorted(set(meta["source_files"]))
         splits[split_name] = {
-            "patients": patients,
-            "source_files": source_files,
+            "patient_count": len(patients),
+            "source_file_count": len(source_files),
             "sample_count": int(payload["X"].shape[0]),
             "tensor_shape": list(payload["X"].shape),
             "label_shape": list(payload["y"].shape),
             "split_file": str(view_dir / f"{split_name}.pt"),
             "split_file_sha256": split_file_hashes[split_name],
+            "patient_set_sha256": _sha256_text(_canonical_json({"patients": patients})),
             "source_files_sha256": _sha256_text(_canonical_json({"source_files": source_files})),
         }
 
