@@ -9,6 +9,8 @@ This checkpoint is a four-active-channel CNN-Micro model for five-finger intent 
 - Checkpoint SHA-256: `3512c065823487dc8b697bb1f0830ef7b0cd61fa5478a7343548a5fe2920d0d8`
 - Selection basis: highest training-selection validation macro-F1 across final distilled seeds `[0, 1, 2, 3, 4]`
 - Ground/reference channel: excluded from model input
+- Completed training modes: direct four-channel training and cross-channel distillation
+- Transfer learning status: runner implemented, not evaluated in the final comparison because no compatible full-channel `CNNMicroSequence` checkpoint was available in this checkout
 
 ## Intended Use
 
@@ -34,10 +36,9 @@ The model is intended to decode post-stroke finger intent from a reduced set of 
 - Sampling rate: 2048 Hz
 - Windowing: 200 ms windows with 50% overlap
 - Feature count: 12 features per active channel per window
-- Patient-level splits:
-- Train: 2656 samples from 34 patients
-- Validation: 432 samples from 5 patients
-- Test: 720 samples from 9 patients
+- Patient-level train split: 2656 samples from 34 patients
+- Patient-level validation split: 432 samples from 5 patients
+- Patient-level test split: 720 samples from 9 patients
 
 ## Final Distilled Performance
 

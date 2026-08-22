@@ -49,6 +49,20 @@ python scripts/run_rp5_4ch_experiments.py --stage distill --selected-view dual -
 python scripts/run_rp5_4ch_experiments.py --stage aggregate
 ```
 
+## Completed Local Runs
+
+The committed artifacts include completed CPU runs for view selection, context selection,
+five-seed direct training, and five-seed cross-channel distillation. The selected
+handoff model is the distilled right-map, 9-window CNN-Micro checkpoint in
+`final/cnn_micro_4ch_right_ctx9_distill_seed4.pt`.
+
+Transfer learning support is implemented in the runner, but the five-seed transfer
+study was not executed for this handoff because this checkout does not contain a
+compatible full-channel `CNNMicroSequence` checkpoint with the expected first-layer
+projection weights. The PR #71 teacher checkpoint is still used for distillation,
+but its older `AdaptiveCNNStudent` tensor layout is not valid for direct
+first-layer slicing transfer.
+
 ## Run Folder Contents
 
 Each completed run writes:
