@@ -1,0 +1,151 @@
+{
+  "active_channel_count": 4,
+  "checkpoint_sha256": "ec6e3b190561199e9763591db794d6da569278f299cc83f3eb6a1a4e3aca51df",
+  "device": "cpu",
+  "duration_sec": 460.5732681751251,
+  "feature_shape_contract": {
+    "cnn_input": [
+      "batch",
+      "windows",
+      48
+    ],
+    "feature_tensor": [
+      "batch",
+      4,
+      "windows",
+      12
+    ],
+    "output_logits": [
+      "batch",
+      5
+    ],
+    "raw_active_signals": [
+      "samples",
+      4
+    ]
+  },
+  "finger_order": [
+    "thumb",
+    "index",
+    "middle",
+    "ring",
+    "little"
+  ],
+  "fs_hz": 2048.0,
+  "git_commit": "4861a2fbd558003d49f6bb3c01661d5f3d71d3aa",
+  "ground_included": false,
+  "muscle_order": [
+    "ECRB",
+    "ECRL",
+    "FDS",
+    "FDP"
+  ],
+  "platform": "macOS-26.5.2-arm64-arm-64bit",
+  "python": "3.11.13",
+  "run_id": "context_200ms_direct_right_seed42",
+  "sequence_padding": "CNN_Micro pads one-window contexts to two temporal steps before temporal pooling.",
+  "split_meta": {
+    "test": {
+      "arms": [
+        "impaired"
+      ],
+      "channel_policy": "right",
+      "channel_views": [
+        "right"
+      ],
+      "fs": 2048.0,
+      "movement_types": [
+        "DiameterGrasp",
+        "ForearmPronation",
+        "ForearmSupination",
+        "HookGrasp",
+        "MassAdduction",
+        "MassExtension",
+        "MassFlexion",
+        "PinchGrasp",
+        "PinchGraspMiddle",
+        "PinchGraspPinkie",
+        "PinchGraspRing",
+        "Rest",
+        "SphereGrasp",
+        "ThumbAdduction",
+        "WristDorsiFlexion",
+        "WristVolarFlexion"
+      ],
+      "patient_count": 9,
+      "sample_count": 720,
+      "source": "physiomio",
+      "source_file_count": 45,
+      "split": "test"
+    },
+    "train": {
+      "arms": [
+        "impaired"
+      ],
+      "channel_policy": "right",
+      "channel_views": [
+        "right"
+      ],
+      "fs": 2048.0,
+      "movement_types": [
+        "DiameterGrasp",
+        "ForearmPronation",
+        "ForearmSupination",
+        "HookGrasp",
+        "MassAdduction",
+        "MassExtension",
+        "MassFlexion",
+        "PinchGrasp",
+        "PinchGraspMiddle",
+        "PinchGraspPinkie",
+        "PinchGraspRing",
+        "Rest",
+        "SphereGrasp",
+        "ThumbAdduction",
+        "WristDorsiFlexion",
+        "WristVolarFlexion"
+      ],
+      "patient_count": 34,
+      "sample_count": 2656,
+      "source": "physiomio",
+      "source_file_count": 166,
+      "split": "train"
+    },
+    "val": {
+      "arms": [
+        "impaired"
+      ],
+      "channel_policy": "right",
+      "channel_views": [
+        "right"
+      ],
+      "fs": 2048.0,
+      "movement_types": [
+        "DiameterGrasp",
+        "ForearmPronation",
+        "ForearmSupination",
+        "HookGrasp",
+        "MassAdduction",
+        "MassExtension",
+        "MassFlexion",
+        "PinchGrasp",
+        "PinchGraspMiddle",
+        "PinchGraspPinkie",
+        "PinchGraspRing",
+        "Rest",
+        "SphereGrasp",
+        "ThumbAdduction",
+        "WristDorsiFlexion",
+        "WristVolarFlexion"
+      ],
+      "patient_count": 5,
+      "sample_count": 432,
+      "source": "physiomio",
+      "source_file_count": 27,
+      "split": "val"
+    }
+  },
+  "stride_samples": 205,
+  "torch": "2.13.0",
+  "window_samples": 410
+}

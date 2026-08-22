@@ -1,0 +1,19 @@
+{
+  "architecture": "CNN_Micro",
+  "finger_order": [
+    "thumb",
+    "index",
+    "middle",
+    "ring",
+    "little"
+  ],
+  "input_features": 48,
+  "muscle_order": [
+    "ECRB",
+    "ECRL",
+    "FDS",
+    "FDP"
+  ],
+  "output_logits": 5,
+  "state_dict": "cnn_micro_4ch_right_ctx9_distill_seed4.pt"
+}

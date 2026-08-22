@@ -31,7 +31,7 @@ class LoaderConfig:
     # PhysioMio settings
     use_physiomio_if_missing: bool = True
     physiomio_raw_dir: str = "datasets/raw/physiomio"
-    physiomio_fs: float = 2000.0
+    physiomio_fs: float = 2048.0
     arm_split: str = "impaired"
     impaired_only: bool = True
     min_segment_samples: int = 200
