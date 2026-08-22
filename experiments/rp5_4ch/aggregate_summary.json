@@ -407,6 +407,150 @@
           "std": 0.003822416912928488
         }
       }
+    },
+    "source|full64|ctx9": {
+      "runs": [
+        {
+          "accuracy": 0.565787037037037,
+          "auprc_macro": 0.7696030637417265,
+          "auroc_macro": 0.8520128295140312,
+          "context_windows": 9,
+          "f1_macro": 0.6809742546434265,
+          "finger_accuracy": 0.7846388888888889,
+          "mode": "source",
+          "run_id": "source_full64_ctx9_seed42",
+          "seed": 42,
+          "view": "full64"
+        }
+      ],
+      "summary": {
+        "accuracy": {
+          "ci95": 0.0,
+          "mean": 0.565787037037037,
+          "n": 1,
+          "std": 0.0
+        },
+        "auprc_macro": {
+          "ci95": 0.0,
+          "mean": 0.7696030637417265,
+          "n": 1,
+          "std": 0.0
+        },
+        "auroc_macro": {
+          "ci95": 0.0,
+          "mean": 0.8520128295140312,
+          "n": 1,
+          "std": 0.0
+        },
+        "f1_macro": {
+          "ci95": 0.0,
+          "mean": 0.6809742546434265,
+          "n": 1,
+          "std": 0.0
+        },
+        "finger_accuracy": {
+          "ci95": 0.0,
+          "mean": 0.7846388888888889,
+          "n": 1,
+          "std": 0.0
+        }
+      }
+    },
+    "transfer|right|ctx9": {
+      "runs": [
+        {
+          "accuracy": 0.4614814814814815,
+          "auprc_macro": 0.582562219923766,
+          "auroc_macro": 0.7388023484700028,
+          "context_windows": 9,
+          "f1_macro": 0.5740520250185914,
+          "finger_accuracy": 0.7034907407407408,
+          "mode": "transfer",
+          "run_id": "transfer_right_ctx9_seed0",
+          "seed": 0,
+          "view": "right"
+        },
+        {
+          "accuracy": 0.47097222222222224,
+          "auprc_macro": 0.6176077665124515,
+          "auroc_macro": 0.7503150865108067,
+          "context_windows": 9,
+          "f1_macro": 0.5659685754882757,
+          "finger_accuracy": 0.7165740740740741,
+          "mode": "transfer",
+          "run_id": "transfer_right_ctx9_seed1",
+          "seed": 1,
+          "view": "right"
+        },
+        {
+          "accuracy": 0.4609722222222222,
+          "auprc_macro": 0.613265720736632,
+          "auroc_macro": 0.7527318391043494,
+          "context_windows": 9,
+          "f1_macro": 0.5765559179736502,
+          "finger_accuracy": 0.7217870370370371,
+          "mode": "transfer",
+          "run_id": "transfer_right_ctx9_seed2",
+          "seed": 2,
+          "view": "right"
+        },
+        {
+          "accuracy": 0.4677777777777778,
+          "auprc_macro": 0.5960735913291171,
+          "auroc_macro": 0.7535803492578144,
+          "context_windows": 9,
+          "f1_macro": 0.5822472937701886,
+          "finger_accuracy": 0.7078981481481481,
+          "mode": "transfer",
+          "run_id": "transfer_right_ctx9_seed3",
+          "seed": 3,
+          "view": "right"
+        },
+        {
+          "accuracy": 0.4477777777777778,
+          "auprc_macro": 0.5831339073503533,
+          "auroc_macro": 0.7437484735815929,
+          "context_windows": 9,
+          "f1_macro": 0.5542677272616258,
+          "finger_accuracy": 0.7055833333333332,
+          "mode": "transfer",
+          "run_id": "transfer_right_ctx9_seed4",
+          "seed": 4,
+          "view": "right"
+        }
+      ],
+      "summary": {
+        "accuracy": {
+          "ci95": 0.007806520378839739,
+          "mean": 0.4617962962962963,
+          "n": 5,
+          "std": 0.008906076650419934
+        },
+        "auprc_macro": {
+          "ci95": 0.014397305673043872,
+          "mean": 0.5985286411704639,
+          "n": 5,
+          "std": 0.016425180702943604
+        },
+        "auroc_macro": {
+          "ci95": 0.005568390533448754,
+          "mean": 0.7478356193849132,
+          "n": 5,
+          "std": 0.006352703958192721
+        },
+        "f1_macro": {
+          "ci95": 0.009513982514018155,
+          "mean": 0.5706183079024665,
+          "n": 5,
+          "std": 0.010854036550045378
+        },
+        "finger_accuracy": {
+          "ci95": 0.0068285537137576825,
+          "mean": 0.7110666666666667,
+          "n": 5,
+          "std": 0.007790362393862663
+        }
+      }
     }
   },
   "runs": [
@@ -563,6 +707,78 @@
       "finger_accuracy": 0.7639444444444445,
       "mode": "distill",
       "run_id": "distill_right_ctx9_seed4",
+      "seed": 4,
+      "view": "right"
+    },
+    {
+      "accuracy": 0.565787037037037,
+      "auprc_macro": 0.7696030637417265,
+      "auroc_macro": 0.8520128295140312,
+      "context_windows": 9,
+      "f1_macro": 0.6809742546434265,
+      "finger_accuracy": 0.7846388888888889,
+      "mode": "source",
+      "run_id": "source_full64_ctx9_seed42",
+      "seed": 42,
+      "view": "full64"
+    },
+    {
+      "accuracy": 0.4614814814814815,
+      "auprc_macro": 0.582562219923766,
+      "auroc_macro": 0.7388023484700028,
+      "context_windows": 9,
+      "f1_macro": 0.5740520250185914,
+      "finger_accuracy": 0.7034907407407408,
+      "mode": "transfer",
+      "run_id": "transfer_right_ctx9_seed0",
+      "seed": 0,
+      "view": "right"
+    },
+    {
+      "accuracy": 0.47097222222222224,
+      "auprc_macro": 0.6176077665124515,
+      "auroc_macro": 0.7503150865108067,
+      "context_windows": 9,
+      "f1_macro": 0.5659685754882757,
+      "finger_accuracy": 0.7165740740740741,
+      "mode": "transfer",
+      "run_id": "transfer_right_ctx9_seed1",
+      "seed": 1,
+      "view": "right"
+    },
+    {
+      "accuracy": 0.4609722222222222,
+      "auprc_macro": 0.613265720736632,
+      "auroc_macro": 0.7527318391043494,
+      "context_windows": 9,
+      "f1_macro": 0.5765559179736502,
+      "finger_accuracy": 0.7217870370370371,
+      "mode": "transfer",
+      "run_id": "transfer_right_ctx9_seed2",
+      "seed": 2,
+      "view": "right"
+    },
+    {
+      "accuracy": 0.4677777777777778,
+      "auprc_macro": 0.5960735913291171,
+      "auroc_macro": 0.7535803492578144,
+      "context_windows": 9,
+      "f1_macro": 0.5822472937701886,
+      "finger_accuracy": 0.7078981481481481,
+      "mode": "transfer",
+      "run_id": "transfer_right_ctx9_seed3",
+      "seed": 3,
+      "view": "right"
+    },
+    {
+      "accuracy": 0.4477777777777778,
+      "auprc_macro": 0.5831339073503533,
+      "auroc_macro": 0.7437484735815929,
+      "context_windows": 9,
+      "f1_macro": 0.5542677272616258,
+      "finger_accuracy": 0.7055833333333332,
+      "mode": "transfer",
+      "run_id": "transfer_right_ctx9_seed4",
       "seed": 4,
       "view": "right"
     },

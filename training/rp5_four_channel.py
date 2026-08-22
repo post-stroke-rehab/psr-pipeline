@@ -26,6 +26,7 @@ from training.train import set_seed
 
 
 MUSCLE_ORDER = ["ECRB", "ECRL", "FDS", "FDP"]
+FULL_CHANNEL_ORDER = "PhysioMio 64-channel HD-sEMG grid"
 FINGER_ORDER = ["thumb", "index", "middle", "ring", "little"]
 FEATURES_PER_CHANNEL = 12
 FULL_CHANNELS = 64
@@ -563,6 +564,48 @@ def _jsonable_metrics(metrics: Dict[str, Any]) -> Dict[str, Any]:
     return convert(metrics)
 
 
+def sanitize_split_meta(meta: Dict[str, Any]) -> Dict[str, Any]:
+    """Keep run manifests useful without committing patient IDs or raw file paths."""
+
+    sensitive = ("patient", "path", "file")
+
+    def is_sensitive_key(key: str) -> bool:
+        lower = key.lower()
+        return any(part in lower for part in sensitive)
+
+    def compact_list(key: str, values: Sequence[Any]) -> Dict[str, Any]:
+        out: Dict[str, Any] = {f"{key}_count": len(values)}
+        safe_scalars = all(isinstance(v, (str, int, float, bool, type(None))) for v in values)
+        if safe_scalars and not is_sensitive_key(key):
+            unique = sorted({str(v) for v in values})
+            out[f"{key}_unique"] = unique if len(unique) <= 20 else len(unique)
+        elif safe_scalars:
+            out[f"{key}_unique_count"] = len({str(v) for v in values})
+        return out
+
+    def scrub(obj: Any, key: str = "value") -> Any:
+        if isinstance(obj, dict):
+            cleaned: Dict[str, Any] = {}
+            for child_key, child_value in obj.items():
+                child_key_str = str(child_key)
+                if is_sensitive_key(child_key_str):
+                    if isinstance(child_value, (list, tuple)):
+                        cleaned.update(compact_list(child_key_str, child_value))
+                    else:
+                        cleaned[f"{child_key_str}_present"] = child_value is not None
+                else:
+                    cleaned[child_key_str] = scrub(child_value, child_key_str)
+            return cleaned
+        if isinstance(obj, (list, tuple)):
+            if len(obj) <= 20:
+                return [scrub(v, key) for v in obj]
+            return compact_list(key, obj)
+        return obj
+
+    cleaned = scrub(meta)
+    return cleaned if isinstance(cleaned, dict) else {"value": cleaned}
+
+
 def write_json(path: str | Path, obj: Any) -> None:
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w") as f:
@@ -578,7 +621,12 @@ def run_four_channel_experiment(cfg: FourChannelRunConfig) -> Dict[str, Any]:
     status = {"status": "running", "started_at": started}
     write_json(run_dir / "status.json", status)
 
-    if cfg.synthetic_smoke:
+    if cfg.mode == "source" and not cfg.synthetic_smoke:
+        reduced_splits = {
+            split: load_full_split(cfg.full_processed_dir, split)
+            for split in ("train", "val", "test")
+        }
+    elif cfg.synthetic_smoke:
         reduced_splits = synthetic_splits(cfg.seed)
     else:
         reduced_splits = {
@@ -588,8 +636,10 @@ def run_four_channel_experiment(cfg: FourChannelRunConfig) -> Dict[str, Any]:
 
     train_loader, val_loader, test_loader = make_loaders(reduced_splits, cfg)
     x0, _ = next(iter(train_loader))
+    input_features = int(x0.shape[-1])
+    active_channel_count = input_features // FEATURES_PER_CHANNEL
     model = CNNMicroSequence(
-        in_features=int(x0.shape[-1]),
+        in_features=input_features,
         out_dim=cfg.out_dim,
         dropout=cfg.dropout,
     ).to(device)
@@ -706,9 +756,9 @@ def run_four_channel_experiment(cfg: FourChannelRunConfig) -> Dict[str, Any]:
                     "config": asdict(cfg),
                     "model_config": {
                         "architecture": "CNN_Micro",
-                        "input_shape": ["batch", "windows", 48],
+                        "input_shape": ["batch", "windows", input_features],
                         "output_shape": ["batch", 5],
-                        "muscle_order": MUSCLE_ORDER,
+                        "muscle_order": MUSCLE_ORDER if active_channel_count == 4 else FULL_CHANNEL_ORDER,
                         "finger_order": FINGER_ORDER,
                     },
                     "transfer_info": transfer_info,
@@ -771,19 +821,22 @@ def run_four_channel_experiment(cfg: FourChannelRunConfig) -> Dict[str, Any]:
         "fs_hz": PHYSIOMIO_FS,
         "window_samples": window_samples(),
         "stride_samples": stride_samples(),
-        "muscle_order": MUSCLE_ORDER,
+        "muscle_order": MUSCLE_ORDER if active_channel_count == 4 else FULL_CHANNEL_ORDER,
         "finger_order": FINGER_ORDER,
-        "active_channel_count": 4,
+        "active_channel_count": active_channel_count,
         "ground_included": False,
         "feature_shape_contract": {
-            "raw_active_signals": ["samples", 4],
-            "feature_tensor": ["batch", 4, "windows", 12],
-            "cnn_input": ["batch", "windows", 48],
+            "raw_active_signals": ["samples", active_channel_count],
+            "feature_tensor": ["batch", active_channel_count, "windows", FEATURES_PER_CHANNEL],
+            "cnn_input": ["batch", "windows", input_features],
             "output_logits": ["batch", 5],
         },
         "sequence_padding": "CNN_Micro pads one-window contexts to two temporal steps before temporal pooling.",
         "checkpoint_sha256": checkpoint_hash,
-        "split_meta": {split: meta for split, (_, _, meta) in reduced_splits.items()},
+        "split_meta": {
+            split: sanitize_split_meta(meta)
+            for split, (_, _, meta) in reduced_splits.items()
+        },
     }
 
     write_json(run_dir / "config.json", asdict(cfg))
@@ -796,9 +849,9 @@ def run_four_channel_experiment(cfg: FourChannelRunConfig) -> Dict[str, Any]:
         run_dir / "model_config.json",
         {
             "architecture": "CNN_Micro",
-            "input_features": int(x0.shape[-1]),
+            "input_features": input_features,
             "output_logits": cfg.out_dim,
-            "muscle_order": MUSCLE_ORDER,
+            "muscle_order": MUSCLE_ORDER if active_channel_count == 4 else FULL_CHANNEL_ORDER,
             "finger_order": FINGER_ORDER,
             "state_dict": "checkpoint_best.pt",
         },

@@ -1,0 +1,31 @@
+{
+  "batch_size": 128,
+  "context_stride": 1,
+  "context_windows": 9,
+  "device": "cpu",
+  "distill_alpha": 0.5,
+  "distill_temperature": 2.0,
+  "dropout": 0.2,
+  "epochs": 60,
+  "full_processed_dir": "/Users/divywadhwani/Desktop/psr/datasets/processed/physiomio",
+  "lr": 0.001,
+  "max_eval_batches": null,
+  "max_train_batches": null,
+  "mode": "transfer",
+  "notes": {
+    "stage": "transfer"
+  },
+  "num_workers": 0,
+  "out_dim": 5,
+  "output_root": "experiments/rp5_4ch/runs",
+  "patience": 12,
+  "processed_dir": "/Users/divywadhwani/Desktop/psr/datasets/processed/physiomio_rp5_4ch",
+  "run_id": "transfer_right_ctx9_seed1",
+  "seed": 1,
+  "synthetic_smoke": false,
+  "teacher_checkpoint": "results/distill_micro_from_cnn_a0.3_t2.0/checkpoint_best.pt",
+  "threshold_metric": "f1_macro",
+  "transfer_checkpoint": "experiments/rp5_4ch/runs/source_full64_ctx9_seed42/checkpoint_best.pt",
+  "view": "right",
+  "weight_decay": 0.0001
+}

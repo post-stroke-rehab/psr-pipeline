@@ -73,10 +73,10 @@
         "WristDorsiFlexion",
         "WristVolarFlexion"
       ],
-      "patient_count": 9,
+      "patient_count_present": true,
       "sample_count": 1440,
       "source": "physiomio",
-      "source_file_count": 45,
+      "source_file_count_present": true,
       "split": "test"
     },
     "train": {
@@ -107,10 +107,10 @@
         "WristDorsiFlexion",
         "WristVolarFlexion"
       ],
-      "patient_count": 34,
+      "patient_count_present": true,
       "sample_count": 5312,
       "source": "physiomio",
-      "source_file_count": 166,
+      "source_file_count_present": true,
       "split": "train"
     },
     "val": {
@@ -141,10 +141,10 @@
         "WristDorsiFlexion",
         "WristVolarFlexion"
       ],
-      "patient_count": 5,
+      "patient_count_present": true,
       "sample_count": 864,
       "source": "physiomio",
-      "source_file_count": 27,
+      "source_file_count_present": true,
       "split": "val"
     }
   },

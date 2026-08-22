@@ -1,0 +1,14 @@
+{
+  "architecture": "CNN_Micro",
+  "finger_order": [
+    "thumb",
+    "index",
+    "middle",
+    "ring",
+    "little"
+  ],
+  "input_features": 768,
+  "muscle_order": "PhysioMio 64-channel HD-sEMG grid",
+  "output_logits": 5,
+  "state_dict": "checkpoint_best.pt"
+}

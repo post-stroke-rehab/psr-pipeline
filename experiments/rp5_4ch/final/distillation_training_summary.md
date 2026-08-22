@@ -28,12 +28,20 @@ Final distillation used seeds `[0, 1, 2, 3, 4]`, right-arm mapping, 9 context wi
 | Test macro-AUPRC | 0.6933 | 0.0036 | 0.0031 |
 | Test macro-AUROC | 0.7904 | 0.0073 | 0.0064 |
 
-## Direct Versus Distilled
+## Training-Mode Comparison
 
 | Training mode | Test subset accuracy | Test finger accuracy | Test macro-F1 | Test macro-AUPRC | Test macro-AUROC |
 | --- | ---: | ---: | ---: | ---: | ---: |
+| Full64 source, seed 42 | 0.5658 | 0.7846 | 0.6810 | 0.7696 | 0.8520 |
 | Direct, five seeds | 0.4801 +/- 0.0080 | 0.7326 +/- 0.0127 | 0.5822 +/- 0.0162 | 0.6401 +/- 0.0230 | 0.7683 +/- 0.0139 |
+| Transfer, five seeds | 0.4618 +/- 0.0089 | 0.7111 +/- 0.0078 | 0.5706 +/- 0.0109 | 0.5985 +/- 0.0164 | 0.7478 +/- 0.0064 |
 | Distilled, five seeds | 0.5219 +/- 0.0114 | 0.7612 +/- 0.0038 | 0.6095 +/- 0.0058 | 0.6933 +/- 0.0036 | 0.7904 +/- 0.0073 |
+
+The distilled four-channel model remains the deployment handoff choice because it
+has the strongest five-seed mean performance among the hardware-feasible
+four-channel training modes. The full64 source model is reported as a same-split
+software reference only; it is not hardware-feasible for the planned four active
+sEMG channel setup.
 
 ## Final Checkpoint
 

@@ -10,6 +10,7 @@ from training.rp5_four_channel import (
     feature_indices_for_channels,
     load_cnn_micro_transfer,
     run_four_channel_experiment,
+    sanitize_split_meta,
     stride_samples,
     window_samples,
 )
@@ -41,6 +42,23 @@ def test_feature_indices_preserve_canonical_channel_order():
 def test_window_math_matches_physiomio_contract():
     assert window_samples() == 410
     assert stride_samples() == 205
+
+
+def test_split_meta_sanitizer_removes_patient_ids_and_paths():
+    meta = {
+        "patients": ["subject01", "subject02"],
+        "source_paths": ["redacted/source/location"],
+        "arms": ["impaired"] * 25,
+        "view": "right",
+    }
+    clean = sanitize_split_meta(meta)
+    serialized = str(clean)
+    assert "subject01" not in serialized
+    assert "redacted/source/location" not in serialized
+    assert clean["patients_count"] == 2
+    assert clean["source_paths_count"] == 1
+    assert clean["arms"]["arms_count"] == 25
+    assert clean["view"] == "right"
 
 
 def test_transfer_slices_full64_first_layer(tmp_path):
@@ -75,3 +93,35 @@ def test_synthetic_smoke_run_writes_checkpoint(tmp_path):
     assert (tmp_path / "pytest_smoke" / "checkpoint_best.pt").exists()
     assert result["thresholds"]
     assert result["test_metrics"]["finger_accuracy"] >= 0.0
+
+
+def test_source_mode_trains_full64_feature_contract(tmp_path):
+    full_dir = tmp_path / "full64"
+    full_dir.mkdir()
+    for split, n in {"train": 8, "val": 4, "test": 4}.items():
+        torch.save(
+            {
+                "X": torch.randn(n, 64, 6, FEATURES_PER_CHANNEL),
+                "y": (torch.rand(n, 5) > 0.5).float(),
+                "meta": {"source": "pytest_full64"},
+            },
+            full_dir / f"{split}.pt",
+        )
+
+    cfg = FourChannelRunConfig(
+        run_id="pytest_source",
+        mode="source",
+        full_processed_dir=str(full_dir),
+        output_root=str(tmp_path),
+        epochs=1,
+        batch_size=4,
+        context_windows=3,
+        device="cpu",
+        max_train_batches=1,
+        max_eval_batches=1,
+    )
+    result = run_four_channel_experiment(cfg)
+    payload = torch.load(tmp_path / "pytest_source" / "checkpoint_best.pt", map_location="cpu", weights_only=True)
+
+    assert result["test_metrics"]["finger_accuracy"] >= 0.0
+    assert payload["model_config"]["input_shape"] == ["batch", "windows", 768]

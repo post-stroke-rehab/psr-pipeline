@@ -111,6 +111,18 @@ def planned_configs(args: argparse.Namespace) -> List[FourChannelRunConfig]:
         )
         return configs
 
+    if args.stage in {"source", "all"}:
+        configs.append(
+            base_cfg(
+                args,
+                run_id=f"source_full64_ctx{args.selected_context}_seed{args.source_seed}",
+                mode="source",
+                view="full64",
+                seed=args.source_seed,
+                context_windows=args.selected_context,
+            )
+        )
+
     if args.stage in {"view", "all"}:
         for view in ("left", "right", "dual"):
             configs.append(
@@ -188,12 +200,13 @@ def collect_run_dirs(output_root: str | Path) -> Iterable[Path]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run RP5 four-channel CNN-Micro experiments.")
-    parser.add_argument("--stage", choices=["smoke", "view", "context", "direct", "transfer", "distill", "all", "aggregate"], default="smoke")
+    parser.add_argument("--stage", choices=["smoke", "source", "view", "context", "direct", "transfer", "distill", "all", "aggregate"], default="smoke")
     parser.add_argument("--processed-dir", default="datasets/processed/physiomio_rp5_4ch")
     parser.add_argument("--full-processed-dir", default="datasets/processed/physiomio")
     parser.add_argument("--output-root", default="experiments/rp5_4ch/runs")
     parser.add_argument("--selected-view", choices=["left", "right", "dual"], default="dual")
     parser.add_argument("--selected-context", type=int, default=4)
+    parser.add_argument("--source-seed", type=int, default=42)
     parser.add_argument("--seeds", type=int, nargs="+", default=[0, 1, 2, 3, 4])
     parser.add_argument("--epochs", type=int, default=60)
     parser.add_argument("--patience", type=int, default=12)
