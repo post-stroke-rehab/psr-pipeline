@@ -4,12 +4,12 @@ import torch
 
 from models.CNN.export_onnx import (
     AdaptiveCNNStudent,
+    CNNMicroSequence,
     load_checkpoint_model,
     model_input_features,
     model_output_features,
     resolve_windows,
 )
-from training.rp5_four_channel import CNNMicroSequence
 
 
 def test_loads_four_channel_cnn_micro_sequence_checkpoint(tmp_path: Path) -> None:
