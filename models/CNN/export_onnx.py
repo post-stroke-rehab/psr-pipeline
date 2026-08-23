@@ -124,9 +124,6 @@ def load_checkpoint_model(path: Path) -> tuple[nn.Module, dict]:
         )
         model.load_state_dict(state, strict=True)
     else:
-        # Four-channel training saves CNNMicroSequence.state_dict(), whose
-        # parameters are prefixed with ``backbone.``. Also accept a bare
-        # CNN_Micro state dict for compatibility with source checkpoints.
         normalized = {
             (key if key.startswith("backbone.") else f"backbone.{key}"): value
             for key, value in state.items()
@@ -181,29 +178,35 @@ def resolve_windows(payload: dict, override: int | None) -> int:
         if isinstance(context_windows, int) and context_windows > 0:
             return context_windows
 
-    # Historical AdaptiveCNNStudent deployment used 39 windows.
     return 39
 
 
 def export_onnx(model: nn.Module, output: Path, windows: int, opset: int) -> torch.Tensor:
+    """Export with a fixed temporal context and dynamic batch size.
+
+    ``CNNMicroSequence`` contains shape-dependent control flow for the one-window
+    padding case, so torch.export correctly specializes the temporal dimension to
+    the traced context length. Deployment also uses the checkpoint's calibrated
+    context length (9 for the selected four-channel model), so only batch is
+    declared dynamic.
+    """
     in_features = model_input_features(model)
     dummy = torch.randn(1, windows, in_features, dtype=torch.float32)
     output.parent.mkdir(parents=True, exist_ok=True)
 
+    batch_dim = torch.export.Dim("batch", min=1)
     with torch.inference_mode():
         torch.onnx.export(
             model,
-            dummy,
+            (dummy,),
             str(output),
             export_params=True,
             opset_version=opset,
             do_constant_folding=True,
             input_names=["features"],
             output_names=["logits"],
-            dynamic_axes={
-                "features": {0: "batch", 1: "windows"},
-                "logits": {0: "batch"},
-            },
+            dynamic_shapes={"x": {0: batch_dim}},
+            dynamo=True,
         )
     return dummy
 
@@ -235,7 +238,7 @@ def main() -> None:
         default=None,
         help="Temporal context length. Defaults to checkpoint config.context_windows, or 39 for legacy checkpoints.",
     )
-    ap.add_argument("--opset", type=int, default=17)
+    ap.add_argument("--opset", type=int, default=18)
     ap.add_argument("--verify", action="store_true")
     args = ap.parse_args()
 
@@ -244,8 +247,8 @@ def main() -> None:
     sample = export_onnx(model, args.output, windows, args.opset)
 
     print(f"Exported {args.output}")
-    print(f"Input:  float32 [batch, windows, {model_input_features(model)}]")
-    print(f"Context windows: {windows}")
+    print(f"Input:  float32 [batch, {windows}, {model_input_features(model)}]")
+    print(f"Context windows: {windows} (fixed)")
     print(f"Output: float32 [batch, {model_output_features(model)}] logits")
     print(f"Architecture: {type(model).__name__}")
 
