@@ -1,13 +1,16 @@
 from pathlib import Path
 
 import torch
+import torch.nn.functional as F
 
 from models.CNN.export_onnx import (
     AdaptiveCNNStudent,
     CNNMicroSequence,
+    StaticAdaptiveMaxPool1d,
     load_checkpoint_model,
     model_input_features,
     model_output_features,
+    prepare_export_model,
     resolve_windows,
 )
 
@@ -63,3 +66,22 @@ def test_loads_legacy_adaptive_checkpoint(tmp_path: Path) -> None:
 
 def test_windows_override_wins_over_checkpoint_config() -> None:
     assert resolve_windows({"config": {"context_windows": 9}}, 4) == 4
+
+
+def test_static_adaptive_max_pool_matches_pytorch_for_four_to_eight() -> None:
+    x = torch.randn(3, 5, 4)
+    expected = F.adaptive_max_pool1d(x, 8)
+    actual = StaticAdaptiveMaxPool1d(input_size=4, output_size=8)(x)
+    torch.testing.assert_close(actual, expected)
+
+
+def test_prepared_four_channel_export_model_preserves_outputs() -> None:
+    model = CNNMicroSequence(in_features=48, out_dim=5, dropout=0.2).eval()
+    export_model = prepare_export_model(model, windows=9)
+    assert isinstance(export_model.backbone.pool, StaticAdaptiveMaxPool1d)
+
+    x = torch.randn(2, 9, 48)
+    with torch.inference_mode():
+        expected = model(x)
+        actual = export_model(x)
+    torch.testing.assert_close(actual, expected, rtol=1e-6, atol=1e-7)
