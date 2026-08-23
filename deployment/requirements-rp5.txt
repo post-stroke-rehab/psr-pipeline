@@ -1,0 +1,9 @@
+numpy
+scipy
+PyWavelets
+matplotlib
+onnxruntime
+
+# Only needed when replaying PhysioMio parquet files directly on the Pi.
+pandas
+pyarrow
