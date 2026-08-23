@@ -8,6 +8,7 @@ __pycache__/
 # Ignore local dataset folders
 datasets/toy_semg/
 .venv/
+.venv-rp5/
 physiomio/
 
 # Ignore processed and raw data
@@ -24,3 +25,8 @@ results/**/*.pt
 training/tuning/**/*.db
 training/tuning/**/ckpts/
 training/tuning/**/trials/
+experiments/rp5_4ch/runs/**/checkpoint_best.pt
+!experiments/rp5_4ch/final/*.pt
+experiments/rp5_4ch/overnight_*.json
+experiments/rp5_4ch/overnight_*.log
+experiments/rp5_4ch/overnight_*.pid

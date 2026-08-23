@@ -159,20 +159,44 @@ def extract_features_multichannel(windows: np.ndarray, fs: float) -> np.ndarray:
         raise ValueError(f"windows must be 3D (n_windows, window_samples, n_channels). Got {windows.shape}")
 
     n_windows, window_samples, n_channels = windows.shape
+    x = windows.astype(float, copy=False)
+    dx = np.diff(x, axis=1)
 
-    #ise existing single-signal extractor on each channel-window
-    #only need the tensor output; timestamps/df are irrelevant here.
-    feature_rows = []
+    threshold = 0.01
+    wamp_threshold = 0.05
 
-    for i in range(n_windows):
-        feats_per_ch = []
-        for ch in range(n_channels):
-            #one 1D window for one channel
-            x_1d = windows[i, :, ch]
-            ft, _, _ = extract_features(x_1d, fs=int(fs), window_stride=1.0, start_time=0.0)
-            #ft shape is (1, 12) because single window
-            feats_per_ch.append(ft[0])
-        #concatenate channel feature vectors -> (n_channels*12,)
-        feature_rows.append(np.concatenate(feats_per_ch, axis=0))
+    # Time-domain features, vectorized over windows and channels.
+    rms = np.sqrt(np.mean(x ** 2, axis=1))
+    mav = np.mean(np.abs(x), axis=1)
+    iemg = np.sum(np.abs(x), axis=1)
+    wl = np.sum(np.abs(dx), axis=1)
+    var = np.var(x, axis=1)
+    zc = np.sum(((x[:, :-1, :] * x[:, 1:, :]) < 0) & (np.abs(x[:, :-1, :] - x[:, 1:, :]) > threshold), axis=1)
+    ssc = np.sum(((dx[:, :-1, :] * dx[:, 1:, :]) < 0) & (np.abs(dx[:, :-1, :] - dx[:, 1:, :]) > threshold), axis=1)
+    wamp = np.sum(np.abs(dx) > wamp_threshold, axis=1)
 
-    return np.vstack(feature_rows)
+    # Frequency-domain features. scipy.signal.welch supports batched arrays.
+    spectral_input = np.moveaxis(x, 1, -1)  # (windows, channels, samples)
+    f, pxx = welch(spectral_input, fs=fs, nperseg=min(256, window_samples), axis=-1)
+    tp = np.sum(pxx, axis=-1)
+    valid_power = np.isfinite(tp) & (tp > 1e-12)
+
+    pn = np.zeros_like(pxx)
+    pn[valid_power] = pxx[valid_power] / (tp[valid_power][..., None] + 1e-12)
+    mnf = np.sum(pn * f, axis=-1)
+    cumulative_power = np.cumsum(pn, axis=-1)
+    mdf_idx = np.argmax(cumulative_power >= 0.5, axis=-1)
+    mdf = f[mdf_idx]
+    sen = -np.sum(pn * np.log2(pn + 1e-12), axis=-1)
+
+    for arr in (mnf, mdf, sen, tp):
+        arr[~valid_power] = 0.0
+
+    invalid = ~np.isfinite(x).all(axis=1)
+    features = np.stack(
+        [rms, mav, iemg, wl, var, zc, ssc, wamp, mnf, mdf, sen, tp],
+        axis=-1,
+    )
+    features[invalid] = 0.0
+
+    return features.reshape(n_windows, n_channels * 12)

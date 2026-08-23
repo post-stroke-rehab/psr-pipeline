@@ -1,0 +1,17 @@
+[view_left_direct_ctx500_seed42] epoch=001 train=0.6379 val_f1=0.5756 best=0.5756
+[view_left_direct_ctx500_seed42] epoch=002 train=0.5607 val_f1=0.6063 best=0.6063
+[view_left_direct_ctx500_seed42] epoch=003 train=0.5143 val_f1=0.5856 best=0.6063
+[view_left_direct_ctx500_seed42] epoch=004 train=0.4775 val_f1=0.5948 best=0.6063
+[view_left_direct_ctx500_seed42] epoch=005 train=0.4449 val_f1=0.6301 best=0.6301
+[view_left_direct_ctx500_seed42] epoch=006 train=0.4211 val_f1=0.6050 best=0.6301
+[view_left_direct_ctx500_seed42] epoch=007 train=0.3999 val_f1=0.6151 best=0.6301
+[view_left_direct_ctx500_seed42] epoch=008 train=0.3832 val_f1=0.5898 best=0.6301
+[view_left_direct_ctx500_seed42] epoch=009 train=0.3640 val_f1=0.6154 best=0.6301
+[view_left_direct_ctx500_seed42] epoch=010 train=0.3484 val_f1=0.5993 best=0.6301
+[view_left_direct_ctx500_seed42] epoch=011 train=0.3320 val_f1=0.6149 best=0.6301
+[view_left_direct_ctx500_seed42] epoch=012 train=0.3202 val_f1=0.6193 best=0.6301
+[view_left_direct_ctx500_seed42] epoch=013 train=0.3045 val_f1=0.6066 best=0.6301
+[view_left_direct_ctx500_seed42] epoch=014 train=0.2988 val_f1=0.5819 best=0.6301
+[view_left_direct_ctx500_seed42] epoch=015 train=0.2867 val_f1=0.5845 best=0.6301
+[view_left_direct_ctx500_seed42] epoch=016 train=0.2794 val_f1=0.6072 best=0.6301
+[view_left_direct_ctx500_seed42] epoch=017 train=0.2722 val_f1=0.6032 best=0.6301

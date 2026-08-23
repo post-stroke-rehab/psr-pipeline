@@ -1,0 +1,8 @@
+{
+  "best_epoch": 1,
+  "best_val_f1": 0.6422494082694744,
+  "checkpoint_sha256": "f549ecd3e688dc09dbfefa5a2aaacd4f0ca913f0377e0064a9a56be88a9acab5",
+  "ended_at": 1787371130.0934458,
+  "started_at": 1787370851.544441,
+  "status": "completed"
+}

@@ -31,7 +31,7 @@ class LoaderConfig:
     # PhysioMio settings
     use_physiomio_if_missing: bool = True
     physiomio_raw_dir: str = "datasets/raw/physiomio"
-    physiomio_fs: float = 2000.0
+    physiomio_fs: float = 2048.0
     arm_split: str = "impaired"
     impaired_only: bool = True
     min_segment_samples: int = 200
@@ -152,7 +152,12 @@ def _patient_split_indices(patient_keys: List[str], cfg: LoaderConfig):
     val_idx = idx[[p in valP for p in patient_keys]]
     test_idx = idx[[p in testP for p in patient_keys]]
 
-    return train_idx, val_idx, test_idx, patients
+    return train_idx, val_idx, test_idx, {
+        "train": sorted(trainP),
+        "val": sorted(valP),
+        "test": sorted(testP),
+        "all_count": len(patients),
+    }
 
 
 # Builds processed splits from raw PhysioMio parquet files
@@ -269,7 +274,7 @@ def _build_processed_from_physiomio(
     X_all = torch.stack(X_fixed, dim=0)
     y_all = torch.stack(y_list, dim=0)
 
-    train_idx, val_idx, test_idx, patients = _patient_split_indices(patient_keys, cfg)
+    train_idx, val_idx, test_idx, split_patients = _patient_split_indices(patient_keys, cfg)
 
     def save_split(name: str, split_idx: np.ndarray) -> None:
         payload = {
@@ -277,7 +282,8 @@ def _build_processed_from_physiomio(
             "y": y_all[split_idx],
             "meta": {
                 "source": "physiomio",
-                "patients": patients,
+                "patient_count": len(split_patients[name]),
+                "all_patient_count": split_patients["all_count"],
                 "seed": cfg.seed,
                 "fs": float(cfg.physiomio_fs),
                 "arm_split": arm_split,

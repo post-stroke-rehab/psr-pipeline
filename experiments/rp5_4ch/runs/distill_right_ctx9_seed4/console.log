@@ -1,0 +1,13 @@
+[distill_right_ctx9_seed4] epoch=001 train=1.4558 val_f1=0.6961 best=0.6961
+[distill_right_ctx9_seed4] epoch=002 train=1.3952 val_f1=0.6677 best=0.6961
+[distill_right_ctx9_seed4] epoch=003 train=1.3662 val_f1=0.6728 best=0.6961
+[distill_right_ctx9_seed4] epoch=004 train=1.3456 val_f1=0.6142 best=0.6961
+[distill_right_ctx9_seed4] epoch=005 train=1.3304 val_f1=0.6621 best=0.6961
+[distill_right_ctx9_seed4] epoch=006 train=1.3163 val_f1=0.6735 best=0.6961
+[distill_right_ctx9_seed4] epoch=007 train=1.3035 val_f1=0.6502 best=0.6961
+[distill_right_ctx9_seed4] epoch=008 train=1.2940 val_f1=0.6345 best=0.6961
+[distill_right_ctx9_seed4] epoch=009 train=1.2867 val_f1=0.6353 best=0.6961
+[distill_right_ctx9_seed4] epoch=010 train=1.2791 val_f1=0.6421 best=0.6961
+[distill_right_ctx9_seed4] epoch=011 train=1.2711 val_f1=0.6545 best=0.6961
+[distill_right_ctx9_seed4] epoch=012 train=1.2658 val_f1=0.6385 best=0.6961
+[distill_right_ctx9_seed4] epoch=013 train=1.2613 val_f1=0.6624 best=0.6961

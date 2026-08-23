@@ -6,12 +6,42 @@ import argparse
 import os
 import sys
 from pathlib import Path
+import shutil
+import tempfile
+
+import numpy as np
+import pandas as pd
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from datasets.loaders import make_dataloaders, LoaderConfig
+from datasets.physiomio_four_channel import (
+    FourChannelPhysioMioConfig,
+    build_physiomio_four_channel_views,
+)
+
+
+def _write_synthetic_physiomio_fixture(raw_dir: Path, *, seed: int, patients: int = 10) -> None:
+    rng = np.random.default_rng(seed)
+    labels = ("Rest", "MassFlexion", "HookGrasp")
+    samples_per_label = 1024
+    channel_names = [f"channel_{i:02d}" for i in range(1, 65)]
+
+    for patient_idx in range(1, patients + 1):
+        patient_dir = raw_dir / f"patient{patient_idx:02d}" / "impaired_arm"
+        patient_dir.mkdir(parents=True, exist_ok=True)
+        rows = samples_per_label * len(labels)
+        data = {
+            ch: rng.normal(loc=0.0, scale=0.05, size=rows).astype(np.float32)
+            for ch in channel_names
+        }
+        movement_type = []
+        for label in labels:
+            movement_type.extend([label] * samples_per_label)
+        data["movement_type"] = movement_type
+        pd.DataFrame(data).to_parquet(patient_dir / "synthetic_smoke.parquet")
 
 
 # Removes existing processed tensors so data can be rebuilt
@@ -41,7 +71,7 @@ def _build_one_split(
         out_dim=args.out_dim,
         use_physiomio_if_missing=True,
         physiomio_raw_dir=str(raw_dir),
-        physiomio_fs=float(args.fs),
+        physiomio_fs=float(args.fs if args.fs is not None else 2048.0),
         arm_split=arm_split,
         impaired_only=(arm_split == "impaired"),
         min_segment_samples=int(args.min_seg_samples),
@@ -73,7 +103,9 @@ def main() -> None:
     parser.add_argument("--val-file", type=str, default="val.pt")
     parser.add_argument("--test-file", type=str, default="test.pt")
 
-    parser.add_argument("--fs", type=float, default=2000.0)
+    parser.add_argument("--fs", type=float, default=None)
+    parser.add_argument("--four-channel", action="store_true", default=False)
+    parser.add_argument("--synthetic-smoke", action="store_true", default=False)
     parser.add_argument("--arm-split", choices=("impaired", "healthy", "both"), default="impaired")
     parser.add_argument("--separate-arm-dirs", action="store_true", default=False)
     parser.add_argument("--impaired-only", action="store_true", default=None)
@@ -94,12 +126,39 @@ def main() -> None:
 
     raw_dir = Path(args.raw_dir)
     processed_dir = Path(args.processed_dir)
+    smoke_tmp = None
+    if args.synthetic_smoke:
+        if not args.four_channel:
+            raise ValueError("--synthetic-smoke is currently supported for --four-channel preprocessing.")
+        smoke_tmp = tempfile.mkdtemp(prefix="physiomio_4ch_smoke_")
+        raw_dir = Path(smoke_tmp) / "raw" / "physiomio"
+        _write_synthetic_physiomio_fixture(raw_dir, seed=args.seed)
+        args.max_patients = args.max_patients or 10
+        args.min_seg_samples = min(int(args.min_seg_samples), 200)
 
     arm_split = args.arm_split
     if args.include_healthy:
         arm_split = "both"
     elif args.impaired_only is True:
         arm_split = "impaired"
+
+    if args.four_channel:
+        cfg = FourChannelPhysioMioConfig(
+            raw_root=str(raw_dir),
+            processed_root=str(processed_dir),
+            seed=args.seed,
+            fs=float(args.fs if args.fs is not None else 2048.0),
+            arm_split=arm_split,
+            impaired_only=(arm_split == "impaired"),
+            min_segment_samples=int(args.min_seg_samples),
+            skip_rest=bool(args.skip_rest),
+            max_patients=args.max_patients,
+        )
+        build_physiomio_four_channel_views(cfg)
+        print("Four-channel PhysioMio processed views ready.")
+        if smoke_tmp:
+            shutil.rmtree(smoke_tmp, ignore_errors=True)
+        return
 
     if arm_split == "both" and args.separate_arm_dirs:
         for split_name in ("healthy", "impaired"):
