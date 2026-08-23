@@ -20,6 +20,8 @@ Examples:
 from __future__ import annotations
 
 import argparse
+import copy
+import math
 import sys
 from pathlib import Path
 
@@ -86,6 +88,38 @@ class CNNMicroSequence(nn.Module):
         if x.shape[1] < 2:
             x = F.pad(x, (0, 0, 0, 2 - int(x.shape[1])))
         return self.backbone(x.permute(0, 2, 1).contiguous())
+
+
+class StaticAdaptiveMaxPool1d(nn.Module):
+    """ONNX-safe equivalent of AdaptiveMaxPool1d for a fixed input length.
+
+    PyTorch allows adaptive max pooling to produce more output bins than input
+    samples (the selected 9-window CNN-Micro reaches length 4 then pools to 8).
+    ONNX exporters do not lower that case directly. For a fixed input length the
+    adaptive pooling bin boundaries are static, so the exact operation can be
+    written as fixed slices plus ``amax`` and concatenation.
+    """
+
+    def __init__(self, input_size: int, output_size: int) -> None:
+        super().__init__()
+        if input_size < 1 or output_size < 1:
+            raise ValueError("input_size and output_size must be positive")
+        self.input_size = int(input_size)
+        self.output_size = int(output_size)
+        self.bins = tuple(
+            (
+                math.floor(i * self.input_size / self.output_size),
+                math.ceil((i + 1) * self.input_size / self.output_size),
+            )
+            for i in range(self.output_size)
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        pooled = [
+            torch.amax(x[..., start:end], dim=-1, keepdim=True)
+            for start, end in self.bins
+        ]
+        return torch.cat(pooled, dim=-1)
 
 
 def _checkpoint_state(payload: object) -> dict[str, torch.Tensor]:
@@ -181,22 +215,44 @@ def resolve_windows(payload: dict, override: int | None) -> int:
     return 39
 
 
-def export_onnx(model: nn.Module, output: Path, windows: int, opset: int) -> torch.Tensor:
-    """Export with fixed temporal context and dynamic batch size.
+def prepare_export_model(model: nn.Module, windows: int) -> nn.Module:
+    """Return an ONNX-friendly copy that is numerically identical at this context."""
+    export_model = copy.deepcopy(model).eval()
+    if not isinstance(export_model, CNNMicroSequence):
+        return export_model
 
-    The dynamo exporter currently fails to lower CNN_Micro's adaptive max-pool
-    path (it surfaces as ``aten.adaptive_max_pool2d`` after decomposition). The
-    legacy TorchScript ONNX exporter handles the model, so deployment uses
-    ``dynamo=False``. The temporal context remains fixed to the checkpoint's
-    calibrated length; only batch is dynamic.
-    """
+    pool = export_model.backbone.pool
+    if not isinstance(pool, nn.AdaptiveMaxPool1d):
+        return export_model
+
+    effective_windows = max(int(windows), 2)
+    # CNN_Micro applies max_pool1d(kernel_size=2, stride=2) before this pool.
+    pooled_input_size = effective_windows // 2
+    output_size = pool.output_size
+    if isinstance(output_size, tuple):
+        output_size = output_size[0]
+    export_model.backbone.pool = StaticAdaptiveMaxPool1d(
+        input_size=pooled_input_size,
+        output_size=int(output_size),
+    )
+    return export_model
+
+
+def export_onnx(model: nn.Module, output: Path, windows: int, opset: int) -> torch.Tensor:
+    """Export with fixed temporal context and dynamic batch size."""
     in_features = model_input_features(model)
     dummy = torch.randn(1, windows, in_features, dtype=torch.float32)
     output.parent.mkdir(parents=True, exist_ok=True)
 
+    export_model = prepare_export_model(model, windows)
+    with torch.inference_mode():
+        original_out = model(dummy)
+        export_out = export_model(dummy)
+    torch.testing.assert_close(original_out, export_out, rtol=1e-6, atol=1e-7)
+
     with torch.inference_mode():
         torch.onnx.export(
-            model,
+            export_model,
             dummy,
             str(output),
             export_params=True,
