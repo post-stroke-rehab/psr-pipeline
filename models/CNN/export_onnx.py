@@ -182,31 +182,33 @@ def resolve_windows(payload: dict, override: int | None) -> int:
 
 
 def export_onnx(model: nn.Module, output: Path, windows: int, opset: int) -> torch.Tensor:
-    """Export with a fixed temporal context and dynamic batch size.
+    """Export with fixed temporal context and dynamic batch size.
 
-    ``CNNMicroSequence`` contains shape-dependent control flow for the one-window
-    padding case, so torch.export correctly specializes the temporal dimension to
-    the traced context length. Deployment also uses the checkpoint's calibrated
-    context length (9 for the selected four-channel model), so only batch is
-    declared dynamic.
+    The dynamo exporter currently fails to lower CNN_Micro's adaptive max-pool
+    path (it surfaces as ``aten.adaptive_max_pool2d`` after decomposition). The
+    legacy TorchScript ONNX exporter handles the model, so deployment uses
+    ``dynamo=False``. The temporal context remains fixed to the checkpoint's
+    calibrated length; only batch is dynamic.
     """
     in_features = model_input_features(model)
     dummy = torch.randn(1, windows, in_features, dtype=torch.float32)
     output.parent.mkdir(parents=True, exist_ok=True)
 
-    batch_dim = torch.export.Dim("batch", min=1)
     with torch.inference_mode():
         torch.onnx.export(
             model,
-            (dummy,),
+            dummy,
             str(output),
             export_params=True,
             opset_version=opset,
             do_constant_folding=True,
             input_names=["features"],
             output_names=["logits"],
-            dynamic_shapes={"x": {0: batch_dim}},
-            dynamo=True,
+            dynamic_axes={
+                "features": {0: "batch"},
+                "logits": {0: "batch"},
+            },
+            dynamo=False,
         )
     return dummy
 
