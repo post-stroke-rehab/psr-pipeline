@@ -1,26 +1,38 @@
-"""Export the distilled AdaptiveCNNStudent checkpoint to ONNX for Raspberry Pi 5.
+"""Export supported CNN checkpoints to ONNX for Raspberry Pi 5 deployment.
 
-The PR #71 deployment checkpoint stores ``model_state`` from
-``training.train_distill.AdaptiveCNNStudent``.  This exporter reconstructs the
-architecture directly from checkpoint tensor shapes, exports model input as
-``(batch, windows, features)``, and optionally verifies ONNX Runtime parity.
+Supports both:
+- the older distilled ``AdaptiveCNNStudent`` checkpoint from PR #71; and
+- the four-channel ``CNNMicroSequence`` checkpoints produced by
+  ``training.rp5_four_channel``.
 
-Example:
+Examples:
     python models/CNN/export_onnx.py \
         --checkpoint results/distill_micro_from_cnn_a0.3_t2.0/checkpoint_best.pt \
         --output deployment/artifacts/cnn_micro.onnx \
+        --verify
+
+    python models/CNN/export_onnx.py \
+        --checkpoint experiments/rp5_4ch/final/cnn_micro_4ch_right_ctx9_distill_seed4.pt \
+        --output deployment/artifacts/cnn_micro_4ch_right_ctx9.onnx \
         --verify
 """
 
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from models.CNN.students import CNN_Micro
 
 
 class AdaptiveCNNStudent(nn.Module):
@@ -44,7 +56,6 @@ class AdaptiveCNNStudent(nn.Module):
         self.fc2 = nn.Linear(fc_hidden, out_dim)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # Training/model-facing layout is (N, W, F).
         if x.dim() != 3:
             raise ValueError(f"Expected (N,W,F), got {tuple(x.shape)}")
         x = x.permute(0, 2, 1).contiguous()
@@ -56,30 +67,126 @@ class AdaptiveCNNStudent(nn.Module):
         return self.fc2(x)
 
 
+class CNNMicroSequence(nn.Module):
+    """Deployment reconstruction of training.rp5_four_channel.CNNMicroSequence."""
+
+    def __init__(self, in_features: int = 48, out_dim: int = 5, dropout: float = 0.2) -> None:
+        super().__init__()
+        self.in_features = int(in_features)
+        self.out_dim = int(out_dim)
+        self.backbone = CNN_Micro(
+            in_channels=self.in_features,
+            num_classes=self.out_dim,
+            dropout=float(dropout),
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        if x.dim() != 3:
+            raise ValueError(f"CNNMicroSequence expects (N,W,F), got {tuple(x.shape)}")
+        if x.shape[1] < 2:
+            x = F.pad(x, (0, 0, 0, 2 - int(x.shape[1])))
+        return self.backbone(x.permute(0, 2, 1).contiguous())
+
+
+def _checkpoint_state(payload: object) -> dict[str, torch.Tensor]:
+    if not isinstance(payload, dict):
+        raise ValueError("Expected checkpoint payload to be a dictionary")
+    state = payload.get("model_state", payload)
+    if not isinstance(state, dict):
+        raise ValueError("Checkpoint does not contain a valid state dict")
+    return state
+
+
+def _dropout_from_payload(payload: dict) -> float:
+    config = payload.get("config", {})
+    return float(config.get("dropout", 0.2)) if isinstance(config, dict) else 0.2
+
+
 def load_checkpoint_model(path: Path) -> tuple[nn.Module, dict]:
     payload = torch.load(path, map_location="cpu", weights_only=False)
-    if not isinstance(payload, dict) or "model_state" not in payload:
-        raise ValueError("Expected distilled checkpoint with a 'model_state' entry")
+    if not isinstance(payload, dict):
+        raise ValueError("Expected checkpoint payload to be a dictionary")
 
-    state = payload["model_state"]
-    conv1 = state["conv1.weight"]
-    fc1 = state["fc1.weight"]
-    fc2 = state["fc2.weight"]
+    state = _checkpoint_state(payload)
+    keys = set(state)
+    dropout = _dropout_from_payload(payload)
 
-    model = AdaptiveCNNStudent(
-        in_features=int(conv1.shape[1]),
-        width=int(conv1.shape[0]),
-        fc_hidden=int(fc1.shape[0]),
-        out_dim=int(fc2.shape[0]),
-        dropout=float(payload.get("config", {}).get("dropout", 0.2)),
-    )
-    model.load_state_dict(state, strict=True)
+    if "conv1.weight" in keys and "fc1.weight" in keys and "fc2.weight" in keys:
+        conv1 = state["conv1.weight"]
+        fc1 = state["fc1.weight"]
+        fc2 = state["fc2.weight"]
+        model: nn.Module = AdaptiveCNNStudent(
+            in_features=int(conv1.shape[1]),
+            width=int(conv1.shape[0]),
+            fc_hidden=int(fc1.shape[0]),
+            out_dim=int(fc2.shape[0]),
+            dropout=dropout,
+        )
+        model.load_state_dict(state, strict=True)
+    else:
+        # Four-channel training saves CNNMicroSequence.state_dict(), whose
+        # parameters are prefixed with ``backbone.``. Also accept a bare
+        # CNN_Micro state dict for compatibility with source checkpoints.
+        normalized = {
+            (key if key.startswith("backbone.") else f"backbone.{key}"): value
+            for key, value in state.items()
+        }
+        proj_key = "backbone.proj.weight"
+        fc2_key = "backbone.fc2.weight"
+        if proj_key not in normalized or fc2_key not in normalized:
+            preview = ", ".join(sorted(keys)[:8])
+            raise ValueError(
+                "Unsupported checkpoint architecture. Expected either "
+                "AdaptiveCNNStudent keys (conv1.weight/fc1.weight/fc2.weight) "
+                "or CNNMicroSequence/CNN_Micro keys containing proj.weight and "
+                f"fc2.weight. First keys: {preview}"
+            )
+
+        model = CNNMicroSequence(
+            in_features=int(normalized[proj_key].shape[1]),
+            out_dim=int(normalized[fc2_key].shape[0]),
+            dropout=dropout,
+        )
+        model.load_state_dict(normalized, strict=True)
+
     model.eval()
     return model, payload
 
 
+def model_input_features(model: nn.Module) -> int:
+    if isinstance(model, AdaptiveCNNStudent):
+        return int(model.conv1.in_channels)
+    if isinstance(model, CNNMicroSequence):
+        return int(model.in_features)
+    raise TypeError(f"Unsupported model type: {type(model).__name__}")
+
+
+def model_output_features(model: nn.Module) -> int:
+    if isinstance(model, AdaptiveCNNStudent):
+        return int(model.fc2.out_features)
+    if isinstance(model, CNNMicroSequence):
+        return int(model.out_dim)
+    raise TypeError(f"Unsupported model type: {type(model).__name__}")
+
+
+def resolve_windows(payload: dict, override: int | None) -> int:
+    if override is not None:
+        if override < 1:
+            raise ValueError("--windows must be at least 1")
+        return int(override)
+
+    config = payload.get("config", {})
+    if isinstance(config, dict):
+        context_windows = config.get("context_windows")
+        if isinstance(context_windows, int) and context_windows > 0:
+            return context_windows
+
+    # Historical AdaptiveCNNStudent deployment used 39 windows.
+    return 39
+
+
 def export_onnx(model: nn.Module, output: Path, windows: int, opset: int) -> torch.Tensor:
-    in_features = int(model.conv1.in_channels)
+    in_features = model_input_features(model)
     dummy = torch.randn(1, windows, in_features, dtype=torch.float32)
     output.parent.mkdir(parents=True, exist_ok=True)
 
@@ -122,18 +229,25 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--checkpoint", type=Path, required=True)
     ap.add_argument("--output", type=Path, required=True)
-    ap.add_argument("--windows", type=int, default=39)
+    ap.add_argument(
+        "--windows",
+        type=int,
+        default=None,
+        help="Temporal context length. Defaults to checkpoint config.context_windows, or 39 for legacy checkpoints.",
+    )
     ap.add_argument("--opset", type=int, default=17)
     ap.add_argument("--verify", action="store_true")
     args = ap.parse_args()
 
     model, payload = load_checkpoint_model(args.checkpoint)
-    sample = export_onnx(model, args.output, args.windows, args.opset)
+    windows = resolve_windows(payload, args.windows)
+    sample = export_onnx(model, args.output, windows, args.opset)
 
     print(f"Exported {args.output}")
-    print(f"Input:  float32 [batch, windows, {model.conv1.in_channels}]")
-    print(f"Output: float32 [batch, {model.fc2.out_features}] logits")
-    print(f"Student: {payload.get('config', {}).get('student', 'unknown')}")
+    print(f"Input:  float32 [batch, windows, {model_input_features(model)}]")
+    print(f"Context windows: {windows}")
+    print(f"Output: float32 [batch, {model_output_features(model)}] logits")
+    print(f"Architecture: {type(model).__name__}")
 
     if args.verify:
         verify(model, args.output, sample)
