@@ -32,7 +32,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from training.rp5_four_channel import CNNMicroSequence
+from models.CNN.students import CNN_Micro
 
 
 class AdaptiveCNNStudent(nn.Module):
@@ -65,6 +65,27 @@ class AdaptiveCNNStudent(nn.Module):
         x = F.relu(self.fc1(x))
         x = self.dropout(x)
         return self.fc2(x)
+
+
+class CNNMicroSequence(nn.Module):
+    """Deployment reconstruction of training.rp5_four_channel.CNNMicroSequence."""
+
+    def __init__(self, in_features: int = 48, out_dim: int = 5, dropout: float = 0.2) -> None:
+        super().__init__()
+        self.in_features = int(in_features)
+        self.out_dim = int(out_dim)
+        self.backbone = CNN_Micro(
+            in_channels=self.in_features,
+            num_classes=self.out_dim,
+            dropout=float(dropout),
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        if x.dim() != 3:
+            raise ValueError(f"CNNMicroSequence expects (N,W,F), got {tuple(x.shape)}")
+        if x.shape[1] < 2:
+            x = F.pad(x, (0, 0, 0, 2 - int(x.shape[1])))
+        return self.backbone(x.permute(0, 2, 1).contiguous())
 
 
 def _checkpoint_state(payload: object) -> dict[str, torch.Tensor]:
