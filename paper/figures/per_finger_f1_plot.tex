@@ -10,7 +10,14 @@
   xtick=data,
   ymajorgrids=true,
   grid style={dashed,gray!30},
-  legend style={at={(0.5,1.15)},anchor=south,legend columns=-1,draw=none,font=\small},
+  legend style={
+    at={(0.5,1.04)},
+    anchor=south,
+    legend columns=3,
+    draw=none,
+    font=\footnotesize,
+    /tikz/every even column/.append style={column sep=0.8em}
+  },
   bar width=8pt,
 ]
 \addplot coordinates {(Thumb,0.716) (Index,0.723) (Middle,0.712) (Ring,0.696) (Little,0.680)};

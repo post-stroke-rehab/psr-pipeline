@@ -1,21 +1,18 @@
-# Neural Signal Processing Models
+# Model Implementations
 
-This folder contains deep learning architectures for sEMG signal processing tasks. Each model supports end-to-end training, validation, and inference, with Bayesian hyperparameter optimization.
+The maintained five-finger intent decoders are:
 
-## Available Models
+- `lstm.py`: recurrent baseline over windowed channel-feature sequences.
+- `gnn.py`: GCN, GraphSAGE, and GAT variants over window graphs.
+- `CNN/`: compact temporal CNN students, 1D ResNet teachers, Optuna tuning,
+  knowledge distillation, evaluations, and ONNX export.
 
-### Signal Translation
-- **Mamba**: State space model for translating hand-to-nose grasping sEMG signals to finger intent sEMG signals
-  - Input: `(batch, seq_len, input_dim)` — Hand-to-nose sEMG
-  - Output: `(batch, seq_len, output_dim)` — Finger intent sEMG
+All classifiers produce five logits ordered `[thumb, index, middle, ring,
+little]`. The 64-channel model-family code consumes 768 features per window.
+The hardware-targeted `CNNMicroSequence` in `training/rp5_four_channel.py`
+consumes 48 features per window from four active channels.
 
-### Finger Intent Prediction
-- **LSTM**: Recurrent architecture for predicting finger intent from sEMG features
-- **CNN**: Convolutional network for extracting temporal patterns from sEMG sequences
-- **GNN**: Graph neural network for structured sEMG representations
-  - Input: `(batch, seq_len, 3)` — sEMG features
-  - Output: `(batch, 5)` — Binary predictions per finger (sigmoid activation)
-
-### Dataset
-Due to the size of the dataset, it has instead been uploaded to the mega link here:
-Download it and put in the correct directory when needed to be used. https://mega.nz/folder/DZcXTQxR#u75Y5nCKy3Z7zPF4oTyURw
+`Mamba.ipynb` and `lstm.ipynb` are exploratory notebooks retained for research
+provenance; they are not part of the paper's reported benchmark path. Dataset
+download and reproduction instructions are maintained in
+`docs/REPRODUCIBILITY.md` rather than in external file-sharing links.

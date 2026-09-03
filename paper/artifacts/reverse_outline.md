@@ -2,62 +2,62 @@
 
 ## Abstract
 
-- **Paragraph topic:** software research project for post-stroke finger-intent decoding, with baseline families first and improvement paths second.
+- Defines post-stroke five-finger intent decoding, summarizes the common
+  representation, reports the three-model baseline, and closes with the
+  five-seed four-channel distillation result and ONNX-ready model.
 
 ## Introduction
 
-- **Paragraph 1 topic:** finger-intent decoding is the software bridge between stroke-rehab motivation and assistive hardware.
-- **Paragraph 2 topic:** reproducibility requires stable preprocessing, labeling, and evaluation, not just a classifier.
-- **Paragraph 3 topic:** the current codebase now supports direct baselines, improved CNNs, transfer learning, and deployment utilities.
-- **Paragraph 4 topic:** the manuscript is a research-project paper whose novelty is the hardware-aware post-stroke decoding formulation.
-- **Paragraph 5 topic:** explicit study contributions and evidence boundaries.
+- Establishes sEMG intent decoding as the software bridge to rehabilitation
+  assistance.
+- Explains why paretic multilabel decoding differs from healthy gesture
+  classification.
+- Frames model choice, model improvement, and sensor reduction as three linked
+  research questions.
+- States the processing, comparative, transfer, and four-channel contributions.
 
 ## Related Work
 
-- **Paragraph 1 topic:** rehabilitation value depends on the whole sensing-and-decoding stack.
-- **Paragraph 2 topic:** Ninapro and PhysioMio define very different benchmark regimes.
-- **Paragraph 3 topic:** prior stroke studies show promise but remain small and heterogeneous.
-- **Paragraph 4 topic:** deep models and healthy-dataset results provide context but are not directly comparable.
-- **Paragraph 5 topic:** transfer learning is now one of the most relevant directions for stroke-oriented sEMG.
-- **Paragraph 6 topic:** distillation, Optuna, ResNet teachers, and CNN-Micro selection matter because deployment constraints are part of the project.
+- Connects sEMG rehabilitation systems to data and evaluation quality.
+- Distinguishes Ninapro healthy-subject benchmarks from PhysioMio.
+- Reviews stroke-specific decoding, deep architectures, transfer learning,
+  distillation, and deployment-oriented optimization.
 
 ## Method
 
-- **Overview paragraph topic:** four-band pipeline with explicit notation.
-- **Ingestion paragraph topic:** patient-grouped PhysioMio ingestion and five-finger label mapping.
-- **Preprocessing paragraph topic:** Butterworth filtering, wavelet denoising, and overlapping windows.
-- **Feature paragraph topic:** twelve handcrafted features define the shared representation.
-- **Adapter paragraph topic:** one tensor pathway supports all model families.
-- **Predictor paragraph topic:** LSTM, GNN, and CNN equations encode different priors.
-- **Training paragraph topic:** multilabel BCE, Optuna, thresholding, latency, and distillation.
-- **Transfer paragraph topic:** healthy-to-impaired pretraining/finetuning path.
+- Defines raw and feature notation for both 64- and four-channel inputs.
+- Documents patient-level ingestion, signal processing, handcrafted features,
+  and shared tensor adaptation.
+- Specifies the four-muscle channel maps and exclusion of ground.
+- Formalizes LSTM, GNN, CNN, BCE, Optuna, distillation, and both transfer paths.
 
 ## Experiments
 
-- **Paragraph 1 topic:** patient-level impaired-arm split.
-- **Paragraph 2 topic:** three evidence tiers and historical-versus-new artifact organization.
-- **Paragraph 3 topic:** evaluation is intentionally baseline-first, then improvement paths.
+- Defines the patient split and four experiment families.
+- Separates single-run historical benchmarks from the five-seed four-channel
+  comparison.
+- States validation-only threshold and checkpoint selection.
 
 ## Results
 
-- **Paragraph 1 topic:** direct LSTM/CNN/GNN baselines show complementary strengths.
-- **Paragraph 2 topic:** optimized CNN students and ResNet teachers shift the frontier.
-- **Paragraph 3 topic:** CNN-Micro is selected as the hardware deployment model despite CNN-Large leading offline accuracy.
-- **Paragraph 4 topic:** transfer learning helps CNN but not LSTM consistently.
-- **Paragraph 5 topic:** distillation is implemented but not yet a complete empirical result.
-- **Paragraph 6 topic:** finger-level behavior remains architecture-dependent.
-- **Paragraph 7 topic:** external literature context should be read carefully because tasks differ.
+- Reports complementary LSTM/GNN baseline behavior.
+- Shows the optimized CNN/ResNet size-performance structure.
+- Describes architecture-dependent healthy transfer.
+- Demonstrates that cross-channel distillation is the strongest reduced-input
+  method while the 64-channel source remains stronger.
+- Retains per-finger and literature context without collapsing incompatible
+  tasks into a leaderboard.
 
 ## Discussion
 
-- **Paragraph 1 topic:** the project now functions as a credible software research framework.
-- **Paragraph 2 topic:** the paper's first half remains a genuine three-family comparison.
-- **Paragraph 3 topic:** healthy-to-impaired transfer is a real direction, especially for CNNs.
-- **Paragraph 4 topic:** relevance and novelty come from a hardware-aware impaired-arm multilabel benchmark, not from a universal SOTA claim.
-- **Paragraph 5 topic:** CNN-Micro plus distillation and latency utilities define the deployment path.
-- **Paragraph 6 topic:** limitations.
+- Interprets the three inductive biases and non-monotonic CNN scaling.
+- Explains the different outcomes of healthy transfer, sliced initialization,
+  and distillation.
+- Frames sensor reduction as a measured performance/implementability trade-off.
+- Defines ONNX compatibility, hardware timing, robustness, and clinical
+  evaluation boundaries.
 
 ## Conclusion
 
-- **Paragraph 1 topic:** restate the software research contribution.
-- **Paragraph 2 topic:** CNN-Micro is the hardware model; next evidence should come from distilled-student and Raspberry Pi validation.
+- Identifies the distilled 123K-parameter four-channel CNN-Micro as the
+  software handoff and states the next hardware-in-the-loop research step.

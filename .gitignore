@@ -1,26 +1,27 @@
-# Byte-compiled / optimized / DLL files
+# Python
 __pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
-# OS
-.DS_Store
-
-# Ignore data
-# Ignore local dataset folders
-datasets/toy_semg/
+# Environments and local tools
 .venv/
-.venv-rp5/
+.venv-*/
+venv/
+.DS_Store
+.ipynb_checkpoints/
+
+# Raw and processed datasets
+datasets/toy_semg/
+datasets/raw/
+datasets/processed/
 physiomio/
 
-# Ignore processed and raw data
-datasets/processed/
-datasets/raw/physiomio/
-
+# Training checkpoints and local runs
 training/ckpts/
 training/runs/
-
-# CNN trained checkpoints (not for VCS)
 models/CNN/checkpoints/
-# Local checkpoints only; plots + README in results/ are fine to commit
 results/**/*.pt
 training/tuning/**/*.db
 training/tuning/**/ckpts/
@@ -30,3 +31,18 @@ experiments/rp5_4ch/runs/**/checkpoint_best.pt
 experiments/rp5_4ch/overnight_*.json
 experiments/rp5_4ch/overnight_*.log
 experiments/rp5_4ch/overnight_*.pid
+*:memory:.ses
+
+# LaTeX and generated publication bundles
+build/
+paper/build/
+*.aux
+*.bbl
+*.bcf
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.run.xml
+*.synctex.gz

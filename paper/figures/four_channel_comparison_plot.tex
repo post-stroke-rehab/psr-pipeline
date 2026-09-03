@@ -1,0 +1,29 @@
+\begin{tikzpicture}
+\begin{axis}[
+  ybar,
+  width=0.90\linewidth,
+  height=6.2cm,
+  ymin=0.44,
+  ymax=0.80,
+  ylabel={Mean score},
+  symbolic x coords={Subset Acc.,Finger Acc.,Macro F1,Macro AUROC,Macro AUPRC},
+  xtick=data,
+  xticklabel style={rotate=18,anchor=east,font=\small},
+  ymajorgrids=true,
+  grid style={dashed,gray!30},
+  legend style={
+    at={(0.5,1.03)},
+    anchor=south,
+    legend columns=3,
+    draw=none,
+    font=\footnotesize,
+    /tikz/every even column/.append style={column sep=0.8em}
+  },
+  bar width=8pt,
+]
+\addplot coordinates {(Subset Acc.,0.4801) (Finger Acc.,0.7326) (Macro F1,0.5822) (Macro AUROC,0.7683) (Macro AUPRC,0.6401)};
+\addplot coordinates {(Subset Acc.,0.4618) (Finger Acc.,0.7111) (Macro F1,0.5706) (Macro AUROC,0.7478) (Macro AUPRC,0.5985)};
+\addplot coordinates {(Subset Acc.,0.5219) (Finger Acc.,0.7612) (Macro F1,0.6095) (Macro AUROC,0.7904) (Macro AUPRC,0.6933)};
+\legend{Direct,Transfer,Distilled}
+\end{axis}
+\end{tikzpicture}

@@ -2,16 +2,18 @@
 
 \subsection{Dataset and split construction}
 
-All experiments use the \physiomio\ processing path implemented for this project~\citep{physiomioData2026,psrrepo2026}. The dataset construction step extracts contiguous movement segments from raw parquet recordings, maps gesture labels to five-bit finger targets, preprocesses each segment, and stores processed tensors as PyTorch split files.
+All experiments use the \physiomio\ processing path implemented for this study~\citep{physiomioData2026,psrrepo2026}. Dataset construction extracts contiguous movement segments from raw parquet recordings, maps gesture labels to five-bit finger targets, applies the signal-processing and feature-extraction stages, and stores tensors as PyTorch split files.
 
-Patients are shuffled with a fixed seed and divided into 70\% train, 10\% validation, and 20\% test partitions. The main benchmark uses impaired-arm recordings. The transfer-learning experiments use healthy-arm recordings for pretraining and impaired-arm recordings for finetuning.
+Patients are shuffled with a fixed seed and divided into 70\% train, 10\% validation, and 20\% test partitions. The main benchmarks use impaired-arm recordings. The healthy-to-impaired experiments use healthy-arm recordings for pretraining and impaired-arm recordings for finetuning. The four-channel study holds the patient assignment fixed across all training modes and contains 34 training patients (2656 samples), five validation patients (432 samples), and nine test patients (720 samples).
 
-\subsection{Model groups}
+\subsection{Experimental groups}
 
-The experiments are organized into three groups. The first group compares direct LSTM, CNN, and GNN baselines trained under the same preprocessing and feature representation. The second group evaluates optimized CNN students and ResNet teachers, emphasizing the trade-off between multilabel performance and model footprint. The third group evaluates healthy-to-impaired transfer learning. Distillation is implemented in the codebase as a teacher-student compression path, but it is not reported as a completed benchmark in the current results.
+The first group compares direct LSTM, CNN, and GNN baselines trained under the same 64-channel preprocessing and feature representation. The second evaluates optimized CNN students and ResNet teachers, emphasizing multilabel performance and model footprint. The third evaluates healthy-to-impaired transfer for CNN-Base and LSTM.
 
-\subsection{Evaluation protocol}
+The fourth group targets the four-active-channel hardware constraint. Development runs compare left, right, and dual channel-map views and context lengths corresponding to one, four, and nine windows. The selected right-map, nine-window configuration is then trained under three modes: direct supervision, first-layer-sliced transfer from a compatible 64-channel CNN-Micro, and cross-channel distillation from a full-representation teacher. Each final mode is run with seeds 0--4. A separate 64-channel CNN-Micro source run with seed 42 provides a same-split reference but is not included in the five-seed variance estimate.
 
-The task is five-label multilabel classification with a nominal decision threshold of 0.5 on the held-out test split. We report subset accuracy, also called exact match ratio, mean finger accuracy, macro precision, macro recall, macro F1, macro AUROC, macro AUPRC, and per-finger metrics. Subset accuracy is strict because all five labels must be correct for a sample to count as correct; finger accuracy and macro metrics expose behavior that subset accuracy alone can hide. The present tables report single deterministic train/validation/test split estimates from committed artifacts, so small differences should be interpreted as empirical comparisons rather than statistical significance claims.
+\subsection{Evaluation and model selection}
 
-The Results section follows the experimental sequence: direct baselines, optimized CNN students and ResNet teachers, transfer learning, finger-level behavior, and literature positioning.
+The task is five-label multilabel classification. We report subset accuracy (exact match ratio), mean finger accuracy, macro precision, macro recall, macro F1, macro AUROC, macro AUPRC, and per-finger metrics. Subset accuracy counts a sample as correct only when all five finger labels are correct. The baseline, CNN-sweep, ResNet, and healthy-transfer tables contain single deterministic-split estimates and therefore do not support statistical-significance claims.
+
+For the four-channel final runs, per-finger thresholds are tuned on validation probabilities and applied to the held-out test set. Results are reported as the mean and sample standard deviation across five seeds; the artifact bundle additionally records 95\% confidence-interval half-widths computed as $1.96s/\sqrt{5}$. The training mode is chosen by mean validation macro F1, and the handoff checkpoint is the seed within that mode with the highest validation macro F1. Test performance is not used to choose the checkpoint.
