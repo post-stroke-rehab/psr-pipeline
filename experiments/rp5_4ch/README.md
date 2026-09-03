@@ -1,6 +1,8 @@
-# RP5 Four-Channel CNN-Micro Retraining
+# Four-Channel CNN-Micro Retraining
 
-This folder is the local run log and handoff area for retraining CNN-Micro on four active sEMG inputs for Raspberry Pi 5 deployment.
+This folder contains the reproducibility log and software handoff artifacts for
+CNN-Micro retraining on four active sEMG inputs. Full metric definitions and
+cross-experiment context are in `docs/RESULTS.md`.
 
 ## Input Contract
 
@@ -38,16 +40,17 @@ python scripts/run_preprocess.py --four-channel --synthetic-smoke --processed-di
 python scripts/run_rp5_4ch_experiments.py --stage smoke
 ```
 
-Colab run sequence after PhysioMio preprocessing:
+Final run sequence after PhysioMio preprocessing:
 
 ```bash
-python scripts/run_rp5_4ch_experiments.py --stage view --device cuda
-python scripts/run_rp5_4ch_experiments.py --stage context --selected-view dual --device cuda
-python scripts/run_rp5_4ch_experiments.py --stage direct --selected-view dual --selected-context 4 --device cuda
-python scripts/run_rp5_4ch_experiments.py --stage transfer --selected-view left --selected-context 4 --transfer-checkpoint path/to/full64_cnn_micro.pt --device cuda
-python scripts/run_rp5_4ch_experiments.py --stage distill --selected-view dual --selected-context 4 --device cuda
+python scripts/run_rp5_4ch_experiments.py --stage direct --selected-view right --selected-context 9 --seeds 0 1 2 3 4 --device auto
+python scripts/run_rp5_4ch_experiments.py --stage transfer --selected-view right --selected-context 9 --seeds 0 1 2 3 4 --transfer-checkpoint path/to/full64_cnn_micro.pt --device auto
+python scripts/run_rp5_4ch_experiments.py --stage distill --selected-view right --selected-context 9 --seeds 0 1 2 3 4 --device auto
 python scripts/run_rp5_4ch_experiments.py --stage aggregate
 ```
+
+The view and context sweeps that motivated this final policy remain committed
+under `runs/`. Use `docs/REPRODUCIBILITY.md` for the complete ordered workflow.
 
 ## Completed Local Runs
 

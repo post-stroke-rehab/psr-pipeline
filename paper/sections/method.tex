@@ -11,13 +11,13 @@ This project defines a modular decoding workflow from multichannel sEMG and gest
   \label{fig:pipeline}
 \end{figure}
 
-For notation, let a pre-segmented raw recording be $X_{\mathrm{raw}} \in \mathbb{R}^{T \times C}$, where $T$ is the number of raw time samples and $C=64$ is the channel count under the \physiomio\ path. After preprocessing and windowing, the project extracts a feature tensor $X_{\mathrm{feat}} \in \mathbb{R}^{C \times W \times F}$, where $W$ is the number of windows and $F=12$ is the number of handcrafted descriptors per channel-window pair. Each sample is paired with a multilabel target vector $y \in \{0,1\}^5$ indicating intended activation of thumb, index, middle, ring, and little finger.
+For notation, let a pre-segmented raw recording be $X_{\mathrm{raw}} \in \mathbb{R}^{T \times C}$, where $T$ is the number of raw time samples and $C$ is either 64 for the high-density benchmarks or 4 for hardware-targeted retraining. After preprocessing and windowing, the project extracts a feature tensor $X_{\mathrm{feat}} \in \mathbb{R}^{C \times W \times F}$, where $W$ is the number of windows and $F=12$ is the number of handcrafted descriptors per channel-window pair. Each sample is paired with a multilabel target vector $y \in \{0,1\}^5$ indicating intended activation of thumb, index, middle, ring, and little finger.
 
 \subsection{Data harmonization and ingestion}
 
 The implementation builds processed datasets directly from raw \physiomio\ parquet files. The loader searches the raw data tree, groups files by patient, aligns contiguous stretches of the same \texttt{movement\_type}, maps each label to a five-bit finger target, discards contiguous label segments shorter than 200 raw samples, and applies the preprocessing pipeline to each usable segment. At the default 2000 Hz sampling rate, this 200-sample rule is a permissive minimum-duration filter for label segments; feature extraction still requires complete 200 ms windows, corresponding to 400 raw samples at 2000 Hz, because the windowing stage does not zero-pad short segments. This converts gesture-level clinical recordings into segment-level multilabel examples.
 
-The default configuration uses \physiomio\ recordings sampled at 2000 Hz and selects the impaired arm. Patients are partitioned into deterministic 70/10/20 train/validation/test splits, so samples from the same patient do not appear in multiple partitions. Processed samples are padded to a dataset-wide maximum window count for batched tensor operations.
+The original 64-channel model-family experiments use the project loader's 2000 Hz configuration and select the impaired arm. The later four-channel experiment follows the documented \physiomio\ rate of 2048 Hz. In both paths, patients are partitioned into deterministic 70/10/20 train/validation/test splits, so samples from the same patient do not appear in multiple partitions. Processed samples are padded to a dataset-wide maximum window count for batched tensor operations.
 
 \subsection{Signal preprocessing}
 
@@ -45,7 +45,13 @@ d = C F = 768.
 \]
 This adapter creates a common input space for recurrent, convolutional, and graph-based predictors.
 
-For the CNN branch, the adapted tensor is subsequently permuted to a channels-first layout. The CNN stack treats the $64 \times 12$ channel-feature grid as 768 input channels for temporal \texttt{Conv1d} layers, preserving the same upstream representation while allowing convolutions over window order. This is best interpreted as temporal convolution over a feature sequence whose per-window vector already contains spatial-channel and spectral summaries. It is not asserted to be superior to raw-signal 1D CNNs or 2D channel-by-time convolutions; those alternatives remain important ablations for future work.
+For the CNN branch, the adapted tensor is subsequently permuted to a channels-first layout. The high-density CNN stack treats the $64 \times 12$ channel-feature grid as 768 input channels for temporal \texttt{Conv1d} layers, preserving the same upstream representation while allowing convolutions over window order. The reduced-channel stack analogously uses $4 \times 12=48$ features per window. This is best interpreted as temporal convolution over a feature sequence whose per-window vector already contains spatial-channel and spectral summaries. It is not asserted to be superior to raw-signal 1D CNNs or 2D channel-by-time convolutions; those alternatives remain important ablations for future work.
+
+\subsection{Hardware-targeted channel reduction}
+
+The reduced-input experiment selects four active channels associated with two wrist/finger extensors and two finger flexors in the canonical order [ECRB, ECRL, FDS, FDP]. For the left array, the one-based \physiomio\ channel indices are $[1,3,9,14]$; for the right array they are $[15,16,9,1]$. The corresponding zero-based right-map indices used by the final model are $[14,15,8,0]$. Because the available metadata do not provide a reliable patient-level laterality field for this hardware placement, preprocessing creates left-map and right-map views under an identical patient split. The final experiment uses the right-map view selected during development.
+
+Only four active sEMG signals enter the feature extractor. The hardware ground or reference electrode is not a fifth signal channel and is never included in $X_{\mathrm{raw}}$, $X_{\mathrm{feat}}$, or the neural-network input. At 2048 Hz, a 200 ms window contains 410 samples after rounding and the 50\% overlap produces a 205-sample stride. The final model receives nine consecutive windows, giving an input $S_{4\mathrm{ch}}\in\mathbb{R}^{9\times48}$, and preserves the same five output logits as the high-density models.
 
 \subsection{Predictor families}
 
@@ -116,7 +122,7 @@ p(r)=
 \]
 Thus trials at or below the baseline latency are not penalized, mildly slower trials receive a linear penalty, and substantially slower trials are strongly downweighted. Trial-level early stopping and median pruning are used during search.
 
-The system also implements teacher-ensemble distillation, per-finger threshold tuning, and latency benchmarking, but the present Results section reports only the non-distilled student and teacher benchmarks. For multilabel distillation, the implemented loss blends the hard target term with a temperature-scaled soft target from the teacher,
+The system also implements teacher-ensemble distillation, per-finger threshold tuning, and latency benchmarking. For multilabel distillation, the implemented loss blends the hard target term with a temperature-scaled soft target from the teacher,
 \[
 \mathcal{L}_{\mathrm{KD}}
 =
@@ -125,8 +131,10 @@ The system also implements teacher-ensemble distillation, per-finger threshold t
 (1-\alpha) T^2
 \operatorname{BCELogits}\!\left(\frac{z_s}{T}, \sigma\!\left(\frac{z_t}{T}\right)\right),
 \]
-where $z_s$ and $z_t$ are student and teacher logits, $T$ is the distillation temperature, and $\alpha$ controls the hard-soft balance. A separate latency benchmark reports mean, median, and 95th-percentile inference time on a chosen device.
+where $z_s$ and $z_t$ are student and teacher logits, $T$ is the distillation temperature, and $\alpha$ controls the hard-soft balance. In the four-channel experiment, paired examples present the full 768-feature representation to the fixed teacher and the matching 48-feature representation to the student. Training uses $T=2$ and $\alpha=0.5$. Per-finger thresholds are selected on validation probabilities and then applied once to test predictions. A separate latency utility can report mean, median, and 95th-percentile inference time on a chosen device, but no Raspberry Pi timing is claimed in this study.
 
-\subsection{Transfer-learning path}
+\subsection{Transfer-learning paths}
 
-In addition to direct impaired-arm benchmarks, the study evaluates two-stage CNN and LSTM training. Models are first pretrained on healthy-arm recordings and then finetuned on impaired-arm recordings while preserving the same five-finger multilabel objective. The reported CNN transfer experiment uses the CNN-Base configuration selected by the two-stage tuning run, so its pretraining and finetuning rows are not intended to duplicate either the legacy direct CNN baseline or the optimized CNN-Micro/CNN-Large deployment rows. This tests whether healthy-limb structure can provide a useful initialization for paretic-limb decoding.
+In addition to direct impaired-arm benchmarks, the study evaluates two distinct transfer mechanisms. In the first, CNN and LSTM models are pretrained on healthy-arm recordings and finetuned on impaired-arm recordings while preserving the same five-finger multilabel objective. The reported CNN experiment uses the CNN-Base configuration selected by the two-stage tuning run, so its rows do not duplicate either the legacy direct CNN baseline or the optimized CNN student sweep.
+
+The four-channel study instead transfers across input density. A compatible 64-channel CNN-Micro source model is trained on the same patient split. Its first projection-layer weights are sliced to the 48 feature indices corresponding to the selected four channels, while shape-compatible later layers are copied directly. This initialization tests whether a full-grid representation transfers to the hardware-feasible sensor subset; it is evaluated separately from cross-channel distillation.

@@ -1,4 +1,9 @@
-# Results — Optuna-tuned Pretrained → Finetuned (seed 42)
+# Healthy-To-Impaired Transfer Results (Seed 42)
+
+This directory records the original 64-channel two-stage CNN-Base and LSTM
+experiments. It is separate from the later four-channel transfer-initialization
+study under `experiments/rp5_4ch/`. See `docs/RESULTS.md` for the complete
+result-family map.
 
 ## Direct baseline (impaired, no pretrain)
 

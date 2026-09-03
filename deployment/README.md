@@ -1,142 +1,96 @@
-# Raspberry Pi 5 inference deployment
+# Raspberry Pi 5 Inference Software
 
-This package wires the current distilled CNN-Micro deployment path together:
-
-```text
-recorded/raw sEMG chunks
-        ↓
-RealtimePreprocessor (runs on RP5)
-        ↓
-float32 model input (1, W, C*12)
-        ↓
-ONNX Runtime
-        ↓
-5 probabilities
-        ↓
-5 calibrated thresholds
-        ↓
-5 finger intents
-```
-
-## What runs on the Raspberry Pi
-
-The Pi is responsible for preprocessing and inference. The model is **not** fed raw sEMG directly.
-
-`deployment/realtime_preprocess.py` receives arbitrary `(samples, channels)` chunks and maintains a rolling raw-signal context. Every inference stride it reuses the repository's existing preprocessing implementation:
-
-1. 20–450 Hz band-pass filter
-2. wavelet denoising
-3. 200 ms windows
-4. 50% overlap
-5. 12 features per channel
-6. `(C,W,12) -> (1,W,C*12)` model adapter
-
-By default a new model input is emitted every 100 ms. The context is right-padded with zeros during startup to preserve the fixed sequence length used by training, then becomes a rolling history once full.
-
-This is a compatibility-first implementation. The offline pipeline currently uses zero-phase filtering and non-streaming wavelet denoising, so this module reruns that same implementation over the available rolling context rather than pretending those operations are inherently causal. Benchmark this on the Pi. If it is too slow, replace the DSP with a causal/stateful implementation only after measuring prediction impact.
-
-## Current model contract
-
-PR #71's checkpoint is the distilled `AdaptiveCNNStudent`, not `models/CNN/students.py::CNN_Micro`.
-
-The current 64-channel model expects:
+This package implements the software boundary from four raw sEMG channels to
+five finger-intent predictions:
 
 ```text
-input:  float32 [batch, windows, 768]
-        768 = 64 channels × 12 features
-output: float32 [batch, 5] logits
+four RAW sEMG channels
+        -> rolling preprocessing and 12 features/channel
+        -> float32 tensor [batch, 9, 48]
+        -> CNN-Micro ONNX inference
+        -> five probabilities
+        -> validation-selected thresholds
+        -> five binary finger intents
 ```
 
-A future four-channel checkpoint will instead expect 48 features/window. The runner checks this automatically and fails rather than silently using the wrong channel count.
+## Current Model Contract
 
-## Export checkpoint to ONNX
+- Active muscle order: `[ECRB, ECRL, FDS, FDP]`
+- Ground/reference electrode: excluded from model input
+- Right-map PhysioMio channels: `15, 16, 9, 1` (one-based)
+- Sampling rate: 2,048 Hz
+- Window: 200 ms (410 samples), 50% overlap (205-sample stride)
+- Context: 9 windows
+- Model input: `float32 [batch, 9, 48]`
+- Model output: `float32 [batch, 5]` logits
+- Finger order: `[thumb, index, middle, ring, little]`
+- Thresholds: `[0.50, 0.70, 0.60, 0.65, 0.60]`
 
-Run export on a development machine with PyTorch installed:
+The selected PyTorch checkpoint is
+`experiments/rp5_4ch/final/cnn_micro_4ch_right_ctx9_distill_seed4.pt`. The
+committed `artifacts/cnn_micro.onnx` is its fixed-context ONNX export.
+
+## Runtime Behavior
+
+`RealtimePreprocessor` receives `(samples, 4)` chunks, maintains rolling signal
+history, and emits model contexts. It reuses the offline 20--450 Hz zero-phase
+filter, Symlet-4 wavelet denoising, 200 ms windowing, and 12-feature extractor.
+
+This compatibility-first preprocessing is computationally non-causal because
+it reruns forward-backward filtering and wavelet denoising over available
+history. It must be benchmarked on the Raspberry Pi before real-time claims are
+made. The repository currently demonstrates export and replay compatibility,
+not measured Raspberry Pi latency.
+
+## Export
 
 ```bash
 python models/CNN/export_onnx.py \
-  --checkpoint results/distill_micro_from_cnn_a0.3_t2.0/checkpoint_best.pt \
+  --checkpoint experiments/rp5_4ch/final/cnn_micro_4ch_right_ctx9_distill_seed4.pt \
   --output deployment/artifacts/cnn_micro.onnx \
+  --windows 9 \
   --verify
 ```
 
-The Pi itself does not need PyTorch or the `.pt` file for normal ONNX inference.
+The export has dynamic batch size and fixed temporal context. ONNX verification
+requires the development dependencies in `requirements-dev.txt`.
 
-## Install on Raspberry Pi 5
-
-Clone/copy this repository or copy the deployment bundle, then create a virtual environment and install:
+## Install On Raspberry Pi 5
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -r deployment/requirements-rp5.txt
+python -m pip install -r deployment/requirements-rp5.txt
 ```
 
-For normal hardware inference, the Pi needs:
+Normal inference uses ONNX Runtime and does not require PyTorch. Keep the model
+with its channel order, acquisition rate, context length, feature order, and
+threshold file.
 
-```text
-deployment/
-  realtime_preprocess.py
-  onnx_runner.py
-  __init__.py
-
-data_processing/
-  preprocess.py
-  preprocess_config.py
-  bandpass_filter.py
-  wavelet_denoise.py
-  windowing.py
-  feature_extraction.py
-
-cnn_micro.onnx
-preprocessing/deployment configuration
-five thresholds
-channel ordering/map
-```
-
-If the full repo is cloned onto the Pi, the Python source files above are already present; only the generated ONNX artifact and deployment-specific configuration need to be added/updated.
-
-The original `.pt` checkpoint is useful for reproducibility and PyTorch-vs-ONNX verification but is not required by ONNX Runtime on the Pi.
-
-## Replay benchmark
-
-To emulate acquisition using a raw PhysioMio parquet file:
+## Recorded-Signal Replay
 
 ```bash
 python scripts/run_rp5_inference.py \
   --model deployment/artifacts/cnn_micro.onnx \
-  --input /path/to/recording.parquet \
-  --channels channel_01 channel_02 ... channel_64 \
-  --sample-rate 2000 \
-  --chunk-ms 10 \
-  --report deployment/report.json
+  --input /path/to/impaired-arm-recording.parquet \
+  --channels channel_15 channel_16 channel_09 channel_01 \
+  --sample-rate 2048 \
+  --context-windows 9 \
+  --thresholds 0.50,0.70,0.60,0.65,0.60 \
+  --unpaced
 ```
 
-The replay layer delivers small raw chunks at wall-clock acquisition speed. It does not pre-window samples for the model. The rolling preprocessor decides when a full inference update is available.
+Remove `--unpaced` to replay at acquisition speed. The runner checks that the
+number of selected channels produces the feature count expected by the ONNX
+model and fails on mismatches.
 
-Use `--unpaced` for regression testing without sleeps.
-
-## Production acquisition replacement
-
-The emulator and future hardware receiver should both end at the same software boundary:
+Future acquisition code should deliver ordered `float32` chunks to the same
+boundary:
 
 ```python
-raw_chunk: np.ndarray  # shape (N, C), ordered channels
+raw_chunk: np.ndarray  # shape (N, 4), order ECRB/ECRL/FDS/FDP
 preprocessor.push(raw_chunk)
 ```
 
-When Pico/ADC acquisition is available, replace the parquet replay callback with the hardware receiver. `RealtimePreprocessor` and `ONNXFingerIntentModel` remain unchanged.
-
-## Files that must accompany the ONNX model
-
-The ONNX file contains the network graph and weights, but it does **not** define the raw-signal contract. Keep the following deployment metadata with it:
-
-- ordered channel map;
-- acquisition/sample rate;
-- preprocessing parameters;
-- model context length;
-- feature ordering/version;
-- five probability thresholds;
-- model/checkpoint/version identifier.
-
-These should eventually be frozen into a machine-readable deployment manifest so the RP5 runner can validate them at startup.
+ADC acquisition, actuator control, hardware safety, and clinical validation are
+outside this software package.

@@ -1,37 +1,44 @@
-# Self Review
+# Adversarial Self-Review
 
-## 1. Does the paper now tell the requested story?
+## Scientific Story
 
-- **Answer:** Yes. The evaluation begins with three individual model families, LSTM, CNN, and GNN, and only then moves to improvement paths.
+The manuscript begins with the requested LSTM/CNN/GNN comparison and then
+evaluates architecture search, healthy-to-impaired transfer, sensor reduction,
+transfer initialization, and cross-channel distillation. It reads as a research
+study rather than a repository inventory.
 
-## 2. Is the paper written from a research-project perspective rather than as a repository inventory?
+## Evidence Strength
 
-- **Answer:** Yes. The framing now centers on a software research framework for post-stroke neurorehabilitation, with the broader hardware goal as context only.
+Every quantitative value is linked to a committed metric or run summary. The
+four-channel table reports five-seed mean and sample standard deviation; the
+64-channel source is explicitly labelled as one seed. The older benchmark
+families remain single-run results and are not given uncertainty estimates.
 
-## 3. Is the literature review materially stronger?
+## Model Lineage
 
-- **Answer:** Yes. The manuscript now covers stroke-specific sEMG studies, systematic reviews, Ninapro, PhysioMio, healthy-data deep models, and transfer learning.
+The legacy CNN, tuned CNN-Base transfer model, optimized 158K-parameter
+CNN-Micro, compatible 64-channel `CNNMicroSequence`, and final
+123K-parameter four-channel `CNNMicroSequence` are named as distinct
+experimental objects. Their metrics are not merged into a single leaderboard.
 
-## 4. Does the methods section feel technically sound?
+## Selection And Leakage
 
-- **Answer:** Yes. The revision adds notation, LSTM/CNN/GNN mathematical background, multilabel loss, and the project-specific distillation objective.
+Four-channel thresholds are tuned on validation predictions. Distillation is
+selected by mean validation macro F1, and seed 4 is selected by validation
+macro F1 within that mode. Test performance is reported after selection and is
+not described as a selection criterion.
 
-## 5. Are the internal comparisons detailed enough?
+## Claims
 
-- **Answer:** Yes. The paper now separates direct baselines from the newer CNN student/teacher branch and includes ResNet teacher results from the merged PR~56 path.
+The paper claims that distillation improves the tested four-channel means and
+that the selected model has an ONNX-compatible interface. It does not claim
+statistical significance, universal state of the art, measured Raspberry Pi
+latency, therapeutic effectiveness, or clinical readiness.
 
-## 6. Is transfer learning handled honestly?
+## Remaining Weaknesses
 
-- **Answer:** Yes. The CNN branch is presented as clearly helped by healthy-to-impaired transfer, while the LSTM branch is described as mixed rather than improved.
-
-## 7. Does the paper choose the right deployment model?
-
-- **Answer:** Yes. CNN-Large is still identified as the offline accuracy leader, but CNN-Micro is now explicitly selected for hardware deployment because it offers the best performance-size compromise.
-
-## 8. Does the paper explain relevance, novelty, and state-of-the-art positioning?
-
-- **Answer:** Yes. The paper now states that this is not a universal sEMG leaderboard result, but it is competitive with internal ResNet teachers on a harder PhysioMio multilabel task and is novel as an integrated hardware-aware post-stroke finger-intent study.
-
-## 9. What is still weakest?
-
-- **Answer:** The project still lacks committed distilled-student metrics, committed device-level latency measurements, and broader robustness evidence across sessions and patients.
+The strongest outstanding limitations are one patient split, inferred rather
+than hardware-validated channel placement, non-causal compatibility
+preprocessing, no on-device timing, and no hardware or clinical evaluation.
+Raw-signal models, causal preprocessing, sparse graphs, and alternative channel
+selection remain useful ablations.

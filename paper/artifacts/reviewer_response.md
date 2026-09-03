@@ -11,7 +11,7 @@ This artifact records how the manuscript revision addressed the external researc
 - Introduced "subset accuracy" / "exact match ratio" as the standard multilabel terminology.
 - Clarified model lineage across direct CNN, optimized CNN students, ResNet teachers, and transfer-learning CNN-Base.
 - Added the exact Optuna objective and latency-penalty function from the CNN optimization code.
-- Clarified that distillation is implemented but not benchmarked as a completed result in the manuscript.
+- Added the completed five-seed four-channel direct, transfer, and distillation comparison with mean, standard deviation, and confidence-interval artifacts.
 - Distinguished raw signal notation from feature tensor notation.
 - Clarified the 200-sample segment filter versus 200 ms feature windows.
 - Clarified Welch periodogram settings, including the effective 256-sample segment length and default 50% overlap.
@@ -24,7 +24,7 @@ This artifact records how the manuscript revision addressed the external researc
 
 ## Deferred Experimental Revisions
 
-- Multiple random seeds, confidence intervals, and statistical tests are acknowledged as necessary future work but were not added because they require new training runs.
+- Five random seeds and confidence intervals are now reported for the four-channel study; the historical model-family experiments remain single-run results.
 - Patient-level cross-validation is acknowledged as future work.
 - Raw-signal CNN, 2D spatial-temporal CNN, sparse GNN adjacency, and graph k-nearest-neighbor ablations are acknowledged as future comparisons.
-- Distilled-student performance and Raspberry Pi 5 on-device latency are identified as future deployment experiments.
+- Distilled-student performance is now evaluated; Raspberry Pi 5 on-device latency remains a future deployment experiment.

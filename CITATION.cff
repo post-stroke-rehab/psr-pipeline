@@ -1,0 +1,54 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite the preprint and this repository."
+title: "Deep Neural Networks for Learning Intent from sEMG Signals to Support Hardware Devices for Post-Stroke Neurorehabilitation"
+type: software
+version: 1.0.0
+date-released: 2026-09-02
+repository-code: "https://github.com/post-stroke-rehab/psr-pipeline"
+license: MIT
+authors:
+  - given-names: Zakariyya
+    family-names: Brewster
+    affiliation: "Department of Engineering Science, University of Toronto"
+  - given-names: Divy
+    family-names: Wadhwani
+    affiliation: "Computer and Mathematical Sciences, University of Toronto Scarborough"
+  - given-names: Emily
+    family-names: Yan
+    affiliation: "Department of Computer Science, University of Toronto"
+  - given-names: Aidan
+    family-names: Wang
+    affiliation: "Computer Science and Cognitive Science, University of Toronto"
+  - given-names: Karma
+    family-names: Namgyal
+    affiliation: "Department of Electrical and Computer Engineering, University of Toronto"
+  - given-names: Shuting
+    family-names: Xie
+    affiliation: "Department of Computer Science, University of Toronto"
+  - given-names: Markiyan
+    family-names: Konyk
+    affiliation: "Department of Engineering Science, University of Toronto"
+  - given-names: Tala
+    family-names: Abdelmaguid
+    affiliation: "Department of Computer Engineering, University of Toronto"
+preferred-citation:
+  type: article
+  title: "Deep Neural Networks for Learning Intent from sEMG Signals to Support Hardware Devices for Post-Stroke Neurorehabilitation"
+  year: 2026
+  authors:
+    - given-names: Zakariyya
+      family-names: Brewster
+    - given-names: Divy
+      family-names: Wadhwani
+    - given-names: Emily
+      family-names: Yan
+    - given-names: Aidan
+      family-names: Wang
+    - given-names: Karma
+      family-names: Namgyal
+    - given-names: Shuting
+      family-names: Xie
+    - given-names: Markiyan
+      family-names: Konyk
+    - given-names: Tala
+      family-names: Abdelmaguid
